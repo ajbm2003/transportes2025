@@ -3,11 +3,11 @@ import os
 from utils import cargar_datos, limpiar_nans, obtener_opciones, filtrar_vehiculos, COLUMNAS
 
 app = Flask(__name__)
-app.secret_key = 'clave_secreta_para_sesion'  # Cambia esto en producción
+app.secret_key = os.environ.get('APP_SECRET_KEY', 'clave_secreta_para_sesion')  # Usa variable de entorno
 
 EXCEL_FILE = 'data/transportes2025.xlsx'
-LOGIN_USER = 'admin'
-LOGIN_PASS = '1234'
+LOGIN_USER = os.environ.get('LOGIN_USER', 'admin')  # Usa variable de entorno
+LOGIN_PASS = os.environ.get('LOGIN_PASS', '1234')   # Usa variable de entorno
 
 @app.route('/')
 def index():
