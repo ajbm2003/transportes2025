@@ -3,7 +3,7 @@ import os
 from utils import cargar_datos, limpiar_nans, obtener_opciones, filtrar_vehiculos, COLUMNAS
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('APP_SECRET_KEY')  # Usa variable de entorno
+app.secret_key = os.environ.get('APP_SECRET_KEY', 'mi_clave0705')  # Usa variable de entorno
 
 EXCEL_FILE = 'data/transportes2025.xlsx'
 LOGIN_USER = os.getenv("LOGIN_USER", "javier76")
