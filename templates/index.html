@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Vehículos Disponibles</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background-color: #f4f4f4; }
+        .filters { margin-bottom: 20px; }
+        .filters select, .filters button { padding: 5px; margin-right: 10px; }
+        .actions {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+        }
+        .actions a { margin-left: 15px; margin-right: 0; text-decoration: none; color: #007BFF; }
+    </style>
+</head>
+<body>
+
+<div class="actions" style="position: absolute; top: 20px; right: 20px;">
+    <a href="{{ url_for('login') }}">Descargar Excel Actualizado</a>
+    {% if session.logged_in %}
+        <a href="{{ url_for('logout') }}">Cerrar sesión</a>
+    {% endif %}
+</div>
+
+<h1>Vehículos Disponibles</h1>
+
+<p>Mostrando {{ vehicles|length }} vehículo{{ vehicles|length != 1 and 's' or '' }}.</p>
+
+<div class="filters">
+    <form method="get" action="{{ url_for('index') }}">
+        <label>División:
+            <select name="division" onchange="this.form.submit()">
+                <option value="">Todas</option>
+                {% for d in divisiones %}
+                <option value="{{ d }}" {% if d == selected_division %}selected{% endif %}>{{ d }}</option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <label>Brigada:
+            <select name="brigada" onchange="this.form.submit()" {% if not selected_division %}disabled{% endif %}>
+                <option value="">Todas</option>
+                {% for b in brigadas %}
+                <option value="{{ b }}" {% if b == selected_brigada %}selected{% endif %}>{{ b }}</option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <label>Unidad:
+            <select name="unidad" onchange="this.form.submit()" {% if not selected_brigada %}disabled{% endif %}>
+                <option value="">Todas</option>
+                {% for u in unidades %}
+                <option value="{{ u }}" {% if u == selected_unidad %}selected{% endif %}>{{ u }}</option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <button type="submit">Filtrar</button>
+    </form>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>ORD</th>
+            <th>Marca</th>
+            <th>Clase / Tipo</th>
+            <th>Año</th>
+            <th>Placas</th>
+            <th>Color</th>
+            <th>Condición</th>
+            <th>Estado</th>
+            <th>Observación</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for v in vehicles %}
+        <tr>
+            <form method="post" action="{{ url_for('editar_vehiculo') }}">
+                <td>{{ v['ORD'] }}</td>
+                <td>{{ v['MARCA'] }}</td>
+                <td>{{ v['CLASE / TIPO'] }}</td>
+                <td>
+                    {{ v['ANO']|int if v['ANO'] }}
+                    <input type="hidden" name="ano" value="{{ v['ANO']|int if v['ANO'] }}">
+                </td>
+                <td>
+                    {{ v['PLACAS'] }}
+                    <input type="hidden" name="placa" value="{{ v['PLACAS'] }}">
+                </td>
+                <td>{{ v['COLOR'] }}</td>
+                <td>
+                    <select name="condicion">
+                        <option value="OPERABLE" {% if v['CONDICION'] == 'OPERABLE' %}selected{% endif %}>OPERABLE</option>
+                        <option value="NO OPERABLE" {% if v['CONDICION'] == 'NO OPERABLE' %}selected{% endif %}>NO OPERABLE</option>
+                        <option value="REMATE" {% if v['CONDICION'] == 'REMATE' %}selected{% endif %}>REMATE</option>
+                    </select>
+                </td>
+                <td>
+                    <select name="estado">
+                        <option value="" {% if not v['ESTADO'] %}selected{% endif %}></option>
+                        <option value="SERVIBLE" {% if v['ESTADO'] == 'SERVIBLE' %}selected{% endif %}>SERVIBLE</option>
+                        <option value="INSERVIBLE" {% if v['ESTADO'] == 'INSERVIBLE' %}selected{% endif %}>INSERVIBLE</option>
+                        <option value="MANTENIMIENTO" {% if v['ESTADO'] == 'MANTENIMIENTO' %}selected{% endif %}>MANTENIMIENTO</option>
+                        <option value="MUSEO" {% if v['ESTADO'] == 'MUSEO' %}selected{% endif %}>MUSEO</option>
+                    </select>
+                </td>
+                <td>
+                    <input type="text" name="observacion" value="{{ v['OBSERVACION'] }}" style="width: 120px;">
+                </td>
+                <td>
+                    <button type="submit">Guardar</button>
+                </td>
+            </form>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+</body>
+</html>
