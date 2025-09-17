@@ -75,4 +75,5 @@ if __name__ == '__main__':
     if not os.path.exists(EXCEL_FILE):
         print(f"Error: {EXCEL_FILE} no encontrado en el directorio.")
     else:
-        app.run(host='127.0.0.1', port=8080, debug=True)
+        port = int(os.environ.get('PORT', 8080))  # Usa el puerto de Render
+        app.run(host='0.0.0.0', port=port)
