@@ -77,3 +77,4 @@ if __name__ == '__main__':
     else:
         port = int(os.environ.get('PORT', 8080))  # Usa el puerto de Render
         app.run(host='0.0.0.0', port=port)
+        
