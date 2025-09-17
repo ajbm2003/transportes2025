@@ -6,8 +6,8 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('APP_SECRET_KEY')  # Usa variable de entorno
 
 EXCEL_FILE = 'data/transportes2025.xlsx'
-LOGIN_USER = os.getenv("LOGIN_USER")
-LOGIN_PASS = os.getenv("LOGIN_PASS")
+LOGIN_USER = os.getenv("LOGIN_USER", "javier76")
+LOGIN_PASS = os.getenv("LOGIN_PASS", "mecanico76")
 
 @app.route('/')
 def index():
@@ -77,4 +77,3 @@ if __name__ == '__main__':
     else:
         port = int(os.environ.get('PORT', 8080))  # Usa el puerto de Render
         app.run(host='0.0.0.0', port=port)
-        
