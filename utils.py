@@ -2,7 +2,7 @@ import pandas as pd
 import unicodedata
 import re
 
-EXCEL_FILE = 'data/transportes2025.xlsx'
+EXCEL_FILE = 'transportes2025.xlsx'
 COLUMNAS = [
     'ORD', 'MARCA', 'CLASE / TIPO', 'ANO', 'PLACAS', 'COLOR',
     'CONDICION', 'ESTADO', 'OBSERVACION', 'MATRICULA 2025', 'DIVISION', 'BRIGADA', 'UNIDAD'

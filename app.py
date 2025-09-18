@@ -5,7 +5,7 @@ from utils import cargar_datos, limpiar_nans, obtener_opciones, filtrar_vehiculo
 app = Flask(__name__)
 app.secret_key = os.environ.get('APP_SECRET_KEY', 'mi_clave0705')  # Usa variable de entorno
 
-EXCEL_FILE = 'data/transportes2025.xlsx'
+EXCEL_FILE = 'transportes2025.xlsx'
 LOGIN_USER = os.getenv("LOGIN_USER", "javier76")
 LOGIN_PASS = os.getenv("LOGIN_PASS", "mecanico76")
 
@@ -16,13 +16,9 @@ def index():
     division_filtro = request.args.get('division')
     brigada_filtro = request.args.get('brigada')
     unidad_filtro = request.args.get('unidad')
-    placa_filtro = request.args.get('placa')  # Obtener el filtro de placa
 
     divisiones, brigadas, unidades = obtener_opciones(df, division_filtro, brigada_filtro)
     df_display = filtrar_vehiculos(df[COLUMNAS], division_filtro, brigada_filtro, unidad_filtro)
-
-    if placa_filtro:  # Filtrar por placa si se proporciona
-        df_display = df_display[df_display['PLACAS'].str.contains(placa_filtro, case=False, na=False)]
 
     return render_template(
         'index.html',
