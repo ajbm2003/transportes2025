@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, send_file, session
 import os
+import threading  # Importar threading para usar el semáforo
 from utils import cargar_datos, limpiar_nans, obtener_opciones, filtrar_vehiculos, COLUMNAS
 
 app = Flask(__name__)
@@ -8,6 +9,9 @@ app.secret_key = os.environ.get('APP_SECRET_KEY', 'mi_clave0705')  # Usa variabl
 EXCEL_FILE = 'transportes2025.xlsx'
 LOGIN_USER = os.getenv("LOGIN_USER", "javier76")
 LOGIN_PASS = os.getenv("LOGIN_PASS", "mecanico76")
+
+# Crear un semáforo global
+excel_lock = threading.Lock()
 
 @app.route('/')
 def index():
@@ -62,13 +66,21 @@ def editar_vehiculo():
     nueva_observacion = request.form.get('observacion', '')
     if not placa:
         return redirect(url_for('index'))
-    df = cargar_datos()
-    if nueva_condicion:
-        df.loc[df['PLACAS'] == placa, 'CONDICION'] = nueva_condicion
-    if nuevo_estado:
-        df.loc[df['PLACAS'] == placa, 'ESTADO'] = nuevo_estado
-    df.loc[df['PLACAS'] == placa, 'OBSERVACION'] = nueva_observacion
-    df.to_excel(EXCEL_FILE, index=False)
+    
+    # Usar el semáforo para garantizar acceso exclusivo al archivo Excel
+    print("Intentando adquirir el semáforo para editar el archivo Excel...")
+    with excel_lock:
+        print("Semáforo adquirido. Editando el archivo Excel...")
+        df = cargar_datos()
+        if nueva_condicion:
+            df.loc[df['PLACAS'] == placa, 'CONDICION'] = nueva_condicion
+        if nuevo_estado:
+            df.loc[df['PLACAS'] == placa, 'ESTADO'] = nuevo_estado
+        df.loc[df['PLACAS'] == placa, 'OBSERVACION'] = nueva_observacion
+        df.to_excel(EXCEL_FILE, index=False)
+        print("Edición completada. Liberando el semáforo...")
+    
+    print("Semáforo liberado.")
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
