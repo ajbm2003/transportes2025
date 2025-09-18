@@ -30,7 +30,10 @@ def cargar_datos():
     return df
 
 def limpiar_nans(df):
-    return df.fillna('')
+    df = df.fillna('')  # Rellenar valores NaN con cadenas vacías
+    if 'PLACAS' in df.columns:
+        df['PLACAS'] = df['PLACAS'].str.strip().str.upper()  # Normalizar la columna PLACAS
+    return df
 
 def obtener_opciones(df, division=None, brigada=None):
     # Asegúrate de que las columnas existen

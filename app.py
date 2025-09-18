@@ -20,9 +20,14 @@ def index():
     division_filtro = request.args.get('division')
     brigada_filtro = request.args.get('brigada')
     unidad_filtro = request.args.get('unidad')
+    placa_filtro = request.args.get('placa')  # Obtener el filtro de placa
 
     divisiones, brigadas, unidades = obtener_opciones(df, division_filtro, brigada_filtro)
     df_display = filtrar_vehiculos(df[COLUMNAS], division_filtro, brigada_filtro, unidad_filtro)
+
+    if placa_filtro:  # Filtrar por placa si se proporciona
+        placa_filtro = placa_filtro.strip().upper()  # Normalizar el valor ingresado
+        df_display = df_display[df_display['PLACAS'].str.upper().str.contains(placa_filtro, na=False)]
 
     return render_template(
         'index.html',
