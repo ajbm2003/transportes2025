@@ -13,32 +13,64 @@ LOGIN_PASS = os.getenv("LOGIN_PASS", "mecanico76")
 # Crear un semáforo global
 excel_lock = threading.Lock()
 
+# Variables globales para divisiones, brigadas y unidades
+divisiones_global = []
+brigadas_global = {}
+unidades_global = {}
+
+def inicializar_filtros():
+    """Inicializa las opciones globales de divisiones, brigadas y unidades."""
+    global divisiones_global, brigadas_global, unidades_global
+    try:
+        print("Inicializando filtros globales...")
+        df = cargar_datos()
+        divisiones_global, _, _ = obtener_opciones(df)
+        for division in divisiones_global:
+            brigadas = obtener_opciones(df, division=division)[1]
+            brigadas_global[division] = brigadas
+            for brigada in brigadas:
+                unidades = obtener_opciones(df, division=division, brigada=brigada)[2]
+                unidades_global[(division, brigada)] = unidades
+        print("Filtros globales inicializados.")
+    except Exception as e:
+        print(f"Error al inicializar los filtros globales: {e}")
+
+# Llamar a la función de inicialización al inicio del script
+inicializar_filtros()
+
 @app.route('/')
 def index():
-    df = cargar_datos()
-    df = limpiar_nans(df)
-    division_filtro = request.args.get('division')
-    brigada_filtro = request.args.get('brigada')
-    unidad_filtro = request.args.get('unidad')
-    placa_filtro = request.args.get('placa')  # Obtener el filtro de placa
+    try:
+        df = cargar_datos()  # Cargar datos directamente desde el archivo Excel
+        df = limpiar_nans(df)
+        division_filtro = request.args.get('division')
+        brigada_filtro = request.args.get('brigada')
+        unidad_filtro = request.args.get('unidad')
+        placa_filtro = request.args.get('placa')  # Obtener el filtro de placa
 
-    divisiones, brigadas, unidades = obtener_opciones(df, division_filtro, brigada_filtro)
-    df_display = filtrar_vehiculos(df[COLUMNAS], division_filtro, brigada_filtro, unidad_filtro)
+        # Filtrar datos
+        df_filtrado = filtrar_vehiculos(df, division_filtro, brigada_filtro, unidad_filtro)
+        if placa_filtro:  # Filtrar por placa si se proporciona
+            placa_filtro = placa_filtro.strip().upper()
+            df_filtrado = df_filtrado[df_filtrado['PLACAS'].str.upper().str.contains(placa_filtro, na=False)]
 
-    if placa_filtro:  # Filtrar por placa si se proporciona
-        placa_filtro = placa_filtro.strip().upper()  # Normalizar el valor ingresado
-        df_display = df_display[df_display['PLACAS'].str.upper().str.contains(placa_filtro, na=False)]
+        # Obtener opciones dinámicas
+        brigadas = brigadas_global.get(division_filtro, [])
+        unidades = unidades_global.get((division_filtro, brigada_filtro), [])
 
-    return render_template(
-        'index.html',
-        vehicles=df_display.to_dict(orient='records'),
-        divisiones=divisiones,
-        brigadas=brigadas,
-        unidades=unidades,
-        selected_division=division_filtro or '',
-        selected_brigada=brigada_filtro or '',
-        selected_unidad=unidad_filtro or ''
-    )
+        return render_template(
+            'index.html',
+            vehicles=df_filtrado[COLUMNAS].to_dict(orient='records'),
+            divisiones=divisiones_global,
+            brigadas=brigadas,
+            unidades=unidades,
+            selected_division=division_filtro or '',
+            selected_brigada=brigada_filtro or '',
+            selected_unidad=unidad_filtro or ''
+        )
+    except Exception as e:
+        print(f"Error al cargar la página principal: {e}")
+        return "Error interno del servidor", 500
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -69,30 +101,37 @@ def editar_vehiculo():
     nueva_condicion = request.form.get('condicion')
     nuevo_estado = request.form.get('estado')  # Puede ser vacío
     nueva_observacion = request.form.get('observacion', '')
-    
+
     if not ord_id:  # Validar que se haya proporcionado el identificador ORD
         return redirect(url_for('index'))
-    
+
     # Usar el semáforo para garantizar acceso exclusivo al archivo Excel
     print("Intentando adquirir el semáforo para editar el archivo Excel...")
     with excel_lock:
         print("Semáforo adquirido. Editando el archivo Excel...")
-        df = cargar_datos()
-        
-        # Filtrar el registro específico por su número de ORD
-        registro_especifico = df['ORD'] == int(ord_id)
-        if registro_especifico.any():  # Verificar que el registro exista
-            if nueva_condicion:
-                df.loc[registro_especifico, 'CONDICION'] = nueva_condicion
-            # Permitir que el estado sea vacío
-            df.loc[registro_especifico, 'ESTADO'] = nuevo_estado
-            df.loc[registro_especifico, 'OBSERVACION'] = nueva_observacion
-            
-            # Guardar los cambios en el archivo Excel
-            df.to_excel(EXCEL_FILE, index=False)
-            print(f"Edición completada para el registro con ORD {ord_id}. Liberando el semáforo...")
-        else:
-            print(f"No se encontró ningún registro con el ORD {ord_id}.")
+        try:
+            df = cargar_datos()  # Cargar datos directamente desde el archivo Excel
+            registro_especifico = df['ORD'] == int(ord_id)
+            if registro_especifico.any():  # Verificar que el registro exista
+                # Actualizar los valores en el DataFrame
+                if nueva_condicion is not None:
+                    df.loc[registro_especifico, 'CONDICION'] = nueva_condicion
+                if nuevo_estado is not None:
+                    df.loc[registro_especifico, 'ESTADO'] = nuevo_estado
+                df.loc[registro_especifico, 'OBSERVACION'] = nueva_observacion or ''
+
+                # Guardar los cambios en el archivo Excel
+                try:
+                    df.to_excel(EXCEL_FILE, index=False)
+                    print(f"Edición completada para el registro con ORD {ord_id}. Liberando el semáforo...")
+                except PermissionError:
+                    print(f"Error: No se pudo guardar el archivo {EXCEL_FILE}. Verifique que no esté abierto en otro programa.")
+                    return "Error: No se pudo guardar el archivo. Verifique que no esté abierto en otro programa.", 500
+            else:
+                print(f"No se encontró ningún registro con el ORD {ord_id}.")
+        except Exception as e:
+            print(f"Error al guardar los cambios: {e}")
+            return "Error interno del servidor", 500
     
     print("Semáforo liberado.")
     return redirect(url_for('index'))
