@@ -97,6 +97,7 @@ def editar_vehiculo():
     print("Semáforo liberado.")
     return redirect(url_for('index'))
 
+
 if __name__ == '__main__':
     if not os.path.exists(EXCEL_FILE):
         print(f"Error: {EXCEL_FILE} no encontrado en el directorio.")
