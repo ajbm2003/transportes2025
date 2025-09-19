@@ -89,7 +89,10 @@
         {% for v in vehicles %}
         <tr>
             <form method="post" action="{{ url_for('editar_vehiculo') }}">
-                <td>{{ v['ORD'] }}</td>
+                <td>
+                    {{ v['ORD'] }}
+                    <input type="hidden" name="ord" value="{{ v['ORD'] }}">
+                </td>
                 <td>{{ v['MARCA'] }}</td>
                 <td>{{ v['CLASE / TIPO'] }}</td>
                 <td>

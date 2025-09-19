@@ -65,11 +65,12 @@ def logout():
 
 @app.route('/editar_vehiculo', methods=['POST'])
 def editar_vehiculo():
-    placa = request.form.get('placa')
+    ord_id = request.form.get('ord')  # Identificador único del registro
     nueva_condicion = request.form.get('condicion')
-    nuevo_estado = request.form.get('estado')
+    nuevo_estado = request.form.get('estado')  # Puede ser vacío
     nueva_observacion = request.form.get('observacion', '')
-    if not placa:
+    
+    if not ord_id:  # Validar que se haya proporcionado el identificador ORD
         return redirect(url_for('index'))
     
     # Usar el semáforo para garantizar acceso exclusivo al archivo Excel
@@ -77,13 +78,21 @@ def editar_vehiculo():
     with excel_lock:
         print("Semáforo adquirido. Editando el archivo Excel...")
         df = cargar_datos()
-        if nueva_condicion:
-            df.loc[df['PLACAS'] == placa, 'CONDICION'] = nueva_condicion
-        if nuevo_estado:
-            df.loc[df['PLACAS'] == placa, 'ESTADO'] = nuevo_estado
-        df.loc[df['PLACAS'] == placa, 'OBSERVACION'] = nueva_observacion
-        df.to_excel(EXCEL_FILE, index=False)
-        print("Edición completada. Liberando el semáforo...")
+        
+        # Filtrar el registro específico por su número de ORD
+        registro_especifico = df['ORD'] == int(ord_id)
+        if registro_especifico.any():  # Verificar que el registro exista
+            if nueva_condicion:
+                df.loc[registro_especifico, 'CONDICION'] = nueva_condicion
+            # Permitir que el estado sea vacío
+            df.loc[registro_especifico, 'ESTADO'] = nuevo_estado
+            df.loc[registro_especifico, 'OBSERVACION'] = nueva_observacion
+            
+            # Guardar los cambios en el archivo Excel
+            df.to_excel(EXCEL_FILE, index=False)
+            print(f"Edición completada para el registro con ORD {ord_id}. Liberando el semáforo...")
+        else:
+            print(f"No se encontró ningún registro con el ORD {ord_id}.")
     
     print("Semáforo liberado.")
     return redirect(url_for('index'))
@@ -94,3 +103,4 @@ if __name__ == '__main__':
     else:
         port = int(os.environ.get('PORT', 8080))  # Usa el puerto de Render
         app.run(host='0.0.0.0', port=port)
+        print(f"Error: {EXCEL_FILE} no encontrado en el directorio.")
