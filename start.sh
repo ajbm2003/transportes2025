@@ -1,5 +1,5 @@
 #!/bin/bash
-
+python init_db.py
 # Inicializa la base de datos leyendo el Excel
 python run_import.py
 
