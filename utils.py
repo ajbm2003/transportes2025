@@ -219,6 +219,42 @@ def invalidate_db_cache():
     _DB_CACHE['df'] = None
     _DB_CACHE['ts'] = 0
 
+
+# --- FUNCION PARA IMPORTAR EXCEL A LA DB ---
+def guardar_excel_en_db(force=False):
+    """
+    Lee el Excel y lo inserta en la base de datos usando el modelo Vehiculo.
+    Si force=True, borra todos los registros antes de importar.
+    """
+    from models import Vehiculo, db
+    excel_file = os.environ.get('EXCEL_FILE', EXCEL_FILE)
+    df = pd.read_excel(excel_file, dtype={'MATRICULA 2025': str})
+    df = df.fillna('')
+    if force:
+        Vehiculo.query.delete()
+        db.session.commit()
+    count = 0
+    for _, row in df.iterrows():
+        v = Vehiculo(
+            ord=int(row.get('ORD', 0) or 0),
+            marca=row.get('MARCA', ''),
+            clase_tipo=row.get('CLASE / TIPO', ''),
+            ano=int(row.get('ANO', 0) or 0),
+            placas=row.get('PLACAS', ''),
+            color=row.get('COLOR', ''),
+            condicion=row.get('CONDICION', ''),
+            estado=row.get('ESTADO', ''),
+            observacion=row.get('OBSERVACION', ''),
+            matricula_2025=row.get('MATRICULA 2025', ''),
+            division=row.get('DIVISION', ''),
+            brigada=row.get('BRIGADA', ''),
+            unidad=row.get('UNIDAD', '')
+        )
+        db.session.add(v)
+        count += 1
+    db.session.commit()
+    return f"{count} registros importados"
+
 def query_vehiculos(division=None, brigada=None, unidad=None, placa=None, limit=None, offset=None):
     """
     Consulta rápida desde la BD con soporte de offset (paginación).
