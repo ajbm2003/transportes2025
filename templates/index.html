@@ -30,7 +30,6 @@
 
 <h1>Vehículos Disponibles</h1>
 
-<p>Mostrando {{ vehicles|length }} vehículo{{ vehicles|length != 1 and 's' or '' }}.</p>
 
 <div class="filters">
     <form method="get" action="{{ url_for('index') }}">
@@ -83,80 +82,140 @@
             <th>Condición</th>
             <th>Estado</th>
             <th>Observación</th>
+            <th>Acción</th>
         </tr>
     </thead>
-    <tbody>
-        {% for v in vehicles %}
-        <tr>
-            <form method="post" action="{{ url_for('editar_vehiculo') }}">
-                <td>
-                    {{ v['ORD'] }}
-                    <input type="hidden" name="ord" value="{{ v['ORD'] }}">
-                </td>
-                <td>{{ v['MARCA'] }}</td>
-                <td>{{ v['CLASE / TIPO'] }}</td>
-                <td>
-                    {{ v['ANO']|int if v['ANO'] }}
-                    <input type="hidden" name="ano" value="{{ v['ANO']|int if v['ANO'] }}">
-                </td>
-                <td>
-                    {{ v['PLACAS'] }}
-                    <input type="hidden" name="placa" value="{{ v['PLACAS'] }}">
-                </td>
-                <td>{{ v['COLOR'] }}</td>
-                <td>
-                    <select name="condicion">
-                        <option value="OPERABLE" {% if v['CONDICION'] == 'OPERABLE' %}selected{% endif %}>OPERABLE</option>
-                        <option value="NO OPERABLE" {% if v['CONDICION'] == 'NO OPERABLE' %}selected{% endif %}>NO OPERABLE</option>
-                        <option value="REMATE" {% if v['CONDICION'] == 'REMATE' %}selected{% endif %}>REMATE</option>
-                    </select>
-                </td>
-                <td>
-                    <select name="estado">
-                        <option value="" {% if not v['ESTADO'] %}selected{% endif %}></option>
-                        <option value="SERVIBLE" {% if v['ESTADO'] == 'SERVIBLE' %}selected{% endif %}>SERVIBLE</option>
-                        <option value="INSERVIBLE" {% if v['ESTADO'] == 'INSERVIBLE' %}selected{% endif %}>INSERVIBLE</option>
-                        <option value="MANTENIMIENTO" {% if v['ESTADO'] == 'MANTENIMIENTO' %}selected{% endif %}>MANTENIMIENTO</option>
-                        <option value="MUSEO" {% if v['ESTADO'] == 'MUSEO' %}selected{% endif %}>MUSEO</option>
-                    </select>
-                </td>
-                <td>
-                    <input type="text" name="observacion" value="{{ v['OBSERVACION'] }}" style="width: 120px;">
-                </td>
-                <td>
-                    <button type="submit">Guardar</button>
-                </td>
-            </form>
-        </tr>
-        {% endfor %}
+    <tbody id="table-body">
+        <!-- filas se inyectan por JS -->
     </tbody>
 </table>
 
+<div id="pagination" style="margin-top: 10px; display:flex; gap:8px; align-items:center;">
+    <button id="prev-btn">Anterior</button>
+    <span id="page-info"></span>
+    <button id="next-btn">Siguiente</button>
+</div>
+
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const forms = document.querySelectorAll('form[action="{{ url_for("editar_vehiculo") }}"]');
-        forms.forEach(form => {
-            form.addEventListener('submit', function (event) {
-                event.preventDefault(); // Evita el comportamiento predeterminado de recargar la página
-                const formData = new FormData(form);
-                fetch(form.action, {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => {
-                    if (response.ok) {
-                        alert('Cambios guardados exitosamente');
+document.addEventListener('DOMContentLoaded', function () {
+    const perPage = 50;
+    let currentPage = 1;
+
+    // Leer filtros desde la UI
+    function getFilters() {
+        const params = new URLSearchParams();
+        const division = document.querySelector('select[name="division"]').value;
+        const brigada = document.querySelector('select[name="brigada"]').value;
+        const unidad = document.querySelector('select[name="unidad"]').value;
+        const placa = document.querySelector('input[name="placa"]').value;
+        if (division) params.append('division', division);
+        if (brigada) params.append('brigada', brigada);
+        if (unidad) params.append('unidad', unidad);
+        if (placa) params.append('placa', placa);
+        return params;
+    }
+
+    async function fetchPage(page=1) {
+        currentPage = page;
+        const params = getFilters();
+        params.set('page', page);
+        params.set('per_page', perPage);
+        const resp = await fetch('/api/vehiculos?' + params.toString());
+        if (!resp.ok) { alert('Error al obtener datos'); return; }
+        const data = await resp.json();
+        renderTable(data.vehicles);
+        updatePagination(data.total, data.page, data.per_page);
+    }
+
+    function renderTable(rows) {
+        const tbody = document.getElementById('table-body');
+        tbody.innerHTML = '';
+        for (const v of rows) {
+            const tr = document.createElement('tr');
+
+            // Crear columnas y formulario en una celda de acción
+            tr.innerHTML = `
+                <td>${v['ORD']}</td>
+                <td>${v['MARCA']}</td>
+                <td>${v['CLASE / TIPO']}</td>
+                <td>${v['ANO'] || ''}</td>
+                <td>${v['PLACAS']}</td>
+                <td>${v['COLOR']}</td>
+                <td>
+                    <select class="condicion">
+                        <option value="OPERABLE" ${v['CONDICION']==='OPERABLE' ? 'selected' : ''}>OPERABLE</option>
+                        <option value="NO OPERABLE" ${v['CONDICION']==='NO OPERABLE' ? 'selected' : ''}>NO OPERABLE</option>
+                        <option value="REMATE" ${v['CONDICION']==='REMATE' ? 'selected' : ''}>REMATE</option>
+                    </select>
+                </td>
+                <td>
+                    <select class="estado">
+                        <option value="" ${!v['ESTADO'] ? 'selected' : ''}></option>
+                        <option value="SERVIBLE" ${v['ESTADO']==='SERVIBLE' ? 'selected' : ''}>SERVIBLE</option>
+                        <option value="INSERVIBLE" ${v['ESTADO']==='INSERVIBLE' ? 'selected' : ''}>INSERVIBLE</option>
+                        <option value="MANTENIMIENTO" ${v['ESTADO']==='MANTENIMIENTO' ? 'selected' : ''}>MANTENIMIENTO</option>
+                        <option value="MUSEO" ${v['ESTADO']==='MUSEO' ? 'selected' : ''}>MUSEO</option>
+                    </select>
+                </td>
+                <td><input type="text" class="observacion" value="${(v['OBSERVACION']||'').replace(/"/g,'&quot;')}" style="width:120px;"></td>
+                <td><button class="save-btn">Guardar</button></td>
+            `;
+            tbody.appendChild(tr);
+
+            // Añadir handler al botón Guardar
+            tr.querySelector('.save-btn').addEventListener('click', async () => {
+                const ord = v['ORD'];
+                const condicion = tr.querySelector('.condicion').value;
+                const estado = tr.querySelector('.estado').value;
+                const observacion = tr.querySelector('.observacion').value;
+                const formData = new FormData();
+                formData.append('ord', ord);
+                formData.append('condicion', condicion);
+                formData.append('estado', estado);
+                formData.append('observacion', observacion);
+                try {
+                    const res = await fetch('{{ url_for("editar_vehiculo") }}', { method: 'POST', body: formData });
+                    if (res.ok) {
+                        alert('Cambios guardados');
+                        // invalidar caché en servidor ya hecho; refrescar la página actual
+                        fetchPage(currentPage);
                     } else {
-                        alert('Error al guardar los cambios');
+                        alert('Error al guardar');
                     }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Error al guardar los cambios');
-                });
+                } catch (err) {
+                    console.error(err);
+                    alert('Error al guardar');
+                }
             });
+        }
+    }
+
+    function updatePagination(total, page, per_page) {
+        const pageInfo = document.getElementById('page-info');
+        const totalPages = Math.max(1, Math.ceil(total / per_page));
+        pageInfo.textContent = `Página ${page} de ${totalPages} — ${total} registros`;
+        document.getElementById('prev-btn').disabled = page <= 1;
+        document.getElementById('next-btn').disabled = page >= totalPages;
+    }
+
+    document.getElementById('prev-btn').addEventListener('click', () => { if (currentPage>1) fetchPage(currentPage-1); });
+    document.getElementById('next-btn').addEventListener('click', () => { fetchPage(currentPage+1); });
+
+    // Interceptar formulario de filtros (evitar recarga)
+    document.querySelectorAll('form[action="{{ url_for("index") }}"]').forEach(f => {
+        f.addEventListener('submit', function(e) {
+            e.preventDefault();
+            fetchPage(1);
         });
     });
+    // También interceptar selects con onchange que antes hacían submit
+    document.querySelectorAll('.filters select').forEach(s => {
+        s.addEventListener('change', () => fetchPage(1));
+    });
+
+    // Cargar primera página al inicio
+    fetchPage(1);
+});
 </script>
 
 </body>
