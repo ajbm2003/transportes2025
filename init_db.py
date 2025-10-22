@@ -68,9 +68,20 @@ def init_db(app):
                 print('Instala las dependencias: pip install Flask-SQLAlchemy psycopg2-binary python-dotenv')
                 return
 
-            print(f'Encontrado {EXCEL_FILE}, poblando la base de datos...')
-            df = cargar_datos()
+            print(f'Encontrado {EXCEL_FILE}, poblando la base de datos desde la hoja DETALLE...')
+            
+            # Leer específicamente la hoja DETALLE
+            import pandas as pd
+            df = pd.read_excel(EXCEL_FILE, sheet_name='DETALLE', header=0, dtype={'MATRICULA 2025': str})
+            
+            # Normalizar columnas
+            from utils import normalizar_columna
+            df.columns = [normalizar_columna(c) for c in df.columns]
             df = limpiar_nans(df)
+            
+            print(f'Columnas detectadas: {list(df.columns)}')
+            print(f'Total de registros a importar: {len(df)}')
+            
             # Evitar duplicados por ORD
             for _, row in df.iterrows():
                 try:
@@ -82,20 +93,37 @@ def init_db(app):
                 existing = ModelVehiculo.query.filter_by(ord=ord_val).first()
                 if existing:
                     continue
+                
+                # Guardar todos los campos como string (excepto ORD que es Integer)
                 v = ModelVehiculo(
                     ord=ord_val,
-                    marca=row.get('MARCA', ''),
-                    clase_tipo=row.get('CLASE / TIPO', ''),
-                    ano=row.get('ANO') if row.get('ANO') not in (None, '') else None,
-                    placas=row.get('PLACAS', ''),
-                    color=row.get('COLOR', ''),
-                    condicion=row.get('CONDICION', ''),
-                    estado=row.get('ESTADO', ''),
-                    observacion=row.get('OBSERVACION', ''),
-                    matricula_2025=row.get('MATRICULA 2025', ''),
-                    division=row.get('DIVISION', ''),
-                    brigada=row.get('BRIGADA', ''),
-                    unidad=row.get('UNIDAD', '')
+                    clase_tipo=str(row.get('CLASE / TIPO', '')),
+                    marca=str(row.get('MARCA', '')),
+                    modelo=str(row.get('MODELO', '')),
+                    chasis=str(row.get('CHASIS', '')),
+                    motor=str(row.get('MOTOR', '')),
+                    ano=str(row.get('ANO', '')),
+                    registro=str(row.get('REGISTRO', '')),
+                    placas=str(row.get('PLACAS', '')),
+                    color=str(row.get('COLOR', '')),
+                    tonelaje=str(row.get('TONELAJE', '')),
+                    cilindraje=str(row.get('CILINDRAJE', '')),
+                    combustible=str(row.get('COMBUSTIBLE', '')),
+                    num_pasajeros=str(row.get('# PASAJ', '')),
+                    valor_esbye=str(row.get('VALOR ESBYE', '')),
+                    valor_comercial=str(row.get('VALOR COMERCIAL', '')),
+                    division=str(row.get('DIVISION', '')),
+                    brigada=str(row.get('BRIGADA', '')),
+                    unidad=str(row.get('UNIDAD', '')),
+                    necesidad_operacional_ft=str(row.get('NECESIDAD OPERACIONAL FT', '')),
+                    condicion=str(row.get('CONDICION', '')),
+                    estado=str(row.get('ESTADO', '')),
+                    codigo_esbye=str(row.get('CODIGO ESBYE', '')),
+                    eod=str(row.get('EOD', '')),
+                    digito=str(row.get('DIGITO', '')),
+                    matricula_2025=str(row.get('MATRICULA 2025', '')),
+                    custodio=str(row.get('CUSTODIO', '')),
+                    observacion=str(row.get('OBSERVACION', ''))
                 )
                 models_db.session.add(v)
             models_db.session.commit()

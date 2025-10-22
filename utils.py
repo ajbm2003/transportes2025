@@ -21,8 +21,11 @@ _DEFAULT_TTL = 10  # segundos; configurable desde current_app.config['DB_CACHE_T
 
 EXCEL_FILE = 'transportes2025.xlsx'
 COLUMNAS = [
-    'ORD', 'MARCA', 'CLASE / TIPO', 'ANO', 'PLACAS', 'COLOR',
-    'CONDICION', 'ESTADO', 'OBSERVACION', 'MATRICULA 2025', 'DIVISION', 'BRIGADA', 'UNIDAD'
+    'ORD', 'CLASE / TIPO', 'MARCA', 'MODELO', 'CHASIS', 'MOTOR', 'ANO', 'REGISTRO',
+    'PLACAS', 'COLOR', 'TONELAJE', 'CILINDRAJE', 'COMBUSTIBLE', '# PASAJ',
+    'VALOR ESBYE', 'VALOR COMERCIAL', 'DIVISION', 'BRIGADA', 'UNIDAD',
+    'NECESIDAD OPERACIONAL FT', 'CONDICION', 'ESTADO', 'CODIGO ESBYE',
+    'EOD', 'DIGITO', 'MATRICULA 2025', 'CUSTODIO', 'OBSERVACION'
 ]
 
 def normalizar_columna(col):
@@ -57,8 +60,8 @@ def cargar_datos():
     except Exception:
         pass
 
-    # Fallback: leer Excel (solo si no hay BD)
-    df = pd.read_excel(EXCEL_FILE, dtype={'MATRICULA 2025': str})
+    # Fallback: leer Excel - usar específicamente la hoja "DETALLE"
+    df = pd.read_excel(EXCEL_FILE, sheet_name='DETALLE', header=0, dtype={'MATRICULA 2025': str})
     df.columns = [normalizar_columna(c) for c in df.columns]
     df = limpiar_nans(df)
     # Asegurar orden por ORD cuando se lee desde Excel
@@ -84,18 +87,33 @@ def df_from_db():
             sql = """
                 SELECT
                     ord AS ORD,
-                    marca AS MARCA,
                     clase_tipo AS "CLASE / TIPO",
+                    marca AS MARCA,
+                    modelo AS MODELO,
+                    chasis AS CHASIS,
+                    motor AS MOTOR,
                     ano AS ANO,
+                    registro AS REGISTRO,
                     placas AS PLACAS,
                     color AS COLOR,
-                    condicion AS CONDICION,
-                    estado AS ESTADO,
-                    observacion AS OBSERVACION,
-                    matricula_2025 AS "MATRICULA 2025",
+                    tonelaje AS TONELAJE,
+                    cilindraje AS CILINDRAJE,
+                    combustible AS COMBUSTIBLE,
+                    num_pasajeros AS "# PASAJ",
+                    valor_esbye AS "VALOR ESBYE",
+                    valor_comercial AS "VALOR COMERCIAL",
                     division AS DIVISION,
                     brigada AS BRIGADA,
-                    unidad AS UNIDAD
+                    unidad AS UNIDAD,
+                    necesidad_operacional_ft AS "NECESIDAD OPERACIONAL FT",
+                    condicion AS CONDICION,
+                    estado AS ESTADO,
+                    codigo_esbye AS "CODIGO ESBYE",
+                    eod AS EOD,
+                    digito AS DIGITO,
+                    matricula_2025 AS "MATRICULA 2025",
+                    custodio AS CUSTODIO,
+                    observacion AS OBSERVACION
                 FROM vehiculos
                 ORDER BY ord
             """
@@ -228,32 +246,116 @@ def guardar_excel_en_db(force=False):
     """
     from models import Vehiculo, db
     excel_file = os.environ.get('EXCEL_FILE', EXCEL_FILE)
-    df = pd.read_excel(excel_file, dtype={'MATRICULA 2025': str})
+    
+    print(f'Leyendo archivo: {excel_file}')
+    
+    # Verificar que existe la hoja DETALLE
+    xls = pd.ExcelFile(excel_file)
+    print(f'Hojas disponibles en el Excel: {xls.sheet_names}')
+    
+    if 'DETALLE' not in xls.sheet_names:
+        print(f'\n¡ERROR! No se encontró la hoja "DETALLE" en el archivo Excel.')
+        print(f'Hojas disponibles: {xls.sheet_names}')
+        return "Error: Hoja DETALLE no encontrada en el archivo Excel"
+    
+    print(f'Leyendo hoja: DETALLE')
+    
+    # Leer la hoja DETALLE con header=0 (primera fila son los encabezados)
+    df = pd.read_excel(excel_file, sheet_name='DETALLE', header=0, dtype=str)  # dtype=str para leer todo como texto
+    
+    print(f'\nColumnas originales: {list(df.columns)}')
+    
+    # Normalizar nombres de columnas
+    df.columns = [normalizar_columna(c) for c in df.columns]
+    print(f'Columnas normalizadas: {list(df.columns)}')
+    print(f'Total de filas en Excel: {len(df)}')
+    
+    # Mostrar primeras 3 filas para verificar
+    print(f'\nPrimeras 3 filas:')
+    print(df.head(3).to_string())
+    
+    # Verificar que tenemos las columnas necesarias
+    if 'ORD' not in df.columns:
+        print('\n¡ERROR! No se encontró la columna ORD en la hoja DETALLE.')
+        print(f'Columnas disponibles: {list(df.columns)}')
+        return "Error: Columna ORD no encontrada en la hoja DETALLE"
+    
     df = df.fillna('')
+    
     if force:
-        Vehiculo.query.delete()
+        deleted = Vehiculo.query.delete()
         db.session.commit()
+        print(f'\nRegistros eliminados: {deleted}')
+    
     count = 0
-    for _, row in df.iterrows():
-        v = Vehiculo(
-            ord=int(row.get('ORD', 0) or 0),
-            marca=row.get('MARCA', ''),
-            clase_tipo=row.get('CLASE / TIPO', ''),
-            ano=int(row.get('ANO', 0) or 0),
-            placas=row.get('PLACAS', ''),
-            color=row.get('COLOR', ''),
-            condicion=row.get('CONDICION', ''),
-            estado=row.get('ESTADO', ''),
-            observacion=row.get('OBSERVACION', ''),
-            matricula_2025=row.get('MATRICULA 2025', ''),
-            division=row.get('DIVISION', ''),
-            brigada=row.get('BRIGADA', ''),
-            unidad=row.get('UNIDAD', '')
-        )
-        db.session.add(v)
-        count += 1
-    db.session.commit()
-    return f"{count} registros importados"
+    errores = 0
+    
+    print(f'\nIniciando importación...')
+    for idx, row in df.iterrows():
+        # Convertir ORD a entero (es el único campo numérico requerido)
+        try:
+            ord_val = int(row.get('ORD')) if row.get('ORD') not in (None, '') else None
+        except Exception as e:
+            ord_val = None
+        
+        if ord_val is None:
+            errores += 1
+            continue
+        
+        try:
+            # Todos los demás campos se guardan como string tal cual vienen
+            v = Vehiculo(
+                ord=ord_val,
+                clase_tipo=str(row.get('CLASE / TIPO', '')),
+                marca=str(row.get('MARCA', '')),
+                modelo=str(row.get('MODELO', '')),
+                chasis=str(row.get('CHASIS', '')),
+                motor=str(row.get('MOTOR', '')),
+                ano=str(row.get('ANO', '')),  # Guardar como string
+                registro=str(row.get('REGISTRO', '')),
+                placas=str(row.get('PLACAS', '')),
+                color=str(row.get('COLOR', '')),
+                tonelaje=str(row.get('TONELAJE', '')),
+                cilindraje=str(row.get('CILINDRAJE', '')),
+                combustible=str(row.get('COMBUSTIBLE', '')),
+                num_pasajeros=str(row.get('# PASAJ', '')),  # Guardar como string
+                valor_esbye=str(row.get('VALOR ESBYE', '')),
+                valor_comercial=str(row.get('VALOR COMERCIAL', '')),
+                division=str(row.get('DIVISION', '')),
+                brigada=str(row.get('BRIGADA', '')),
+                unidad=str(row.get('UNIDAD', '')),
+                necesidad_operacional_ft=str(row.get('NECESIDAD OPERACIONAL FT', '')),
+                condicion=str(row.get('CONDICION', '')),
+                estado=str(row.get('ESTADO', '')),
+                codigo_esbye=str(row.get('CODIGO ESBYE', '')),
+                eod=str(row.get('EOD', '')),
+                digito=str(row.get('DIGITO', '')),
+                matricula_2025=str(row.get('MATRICULA 2025', '')),
+                custodio=str(row.get('CUSTODIO', '')),
+                observacion=str(row.get('OBSERVACION', ''))
+            )
+            db.session.add(v)
+            count += 1
+            
+            # Commit cada 100 registros para evitar problemas de memoria
+            if count % 100 == 0:
+                db.session.commit()
+                print(f'Procesados {count} registros...')
+        except Exception as e:
+            print(f'Fila {idx+2} (ORD={ord_val}): Error al crear vehículo: {e}')
+            db.session.rollback()  # Hacer rollback en caso de error
+            errores += 1
+    
+    # Commit final
+    try:
+        db.session.commit()
+        invalidate_db_cache()
+    except Exception as e:
+        print(f'Error en commit final: {e}')
+        db.session.rollback()
+    
+    print(f'\nImportación completada: {count} registros importados, {errores} errores')
+    return f"{count} registros importados, {errores} errores"
 
 def query_vehiculos(division=None, brigada=None, unidad=None, placa=None, limit=None, offset=None):
     """
@@ -267,18 +369,33 @@ def query_vehiculos(division=None, brigada=None, unidad=None, placa=None, limit=
             sql = """
                 SELECT
                     ord AS ORD,
-                    marca AS MARCA,
                     clase_tipo AS "CLASE / TIPO",
+                    marca AS MARCA,
+                    modelo AS MODELO,
+                    chasis AS CHASIS,
+                    motor AS MOTOR,
                     ano AS ANO,
+                    registro AS REGISTRO,
                     placas AS PLACAS,
                     color AS COLOR,
-                    condicion AS CONDICION,
-                    estado AS ESTADO,
-                    observacion AS OBSERVACION,
-                    matricula_2025 AS "MATRICULA 2025",
+                    tonelaje AS TONELAJE,
+                    cilindraje AS CILINDRAJE,
+                    combustible AS COMBUSTIBLE,
+                    num_pasajeros AS "# PASAJ",
+                    valor_esbye AS "VALOR ESBYE",
+                    valor_comercial AS "VALOR COMERCIAL",
                     division AS DIVISION,
                     brigada AS BRIGADA,
-                    unidad AS UNIDAD
+                    unidad AS UNIDAD,
+                    necesidad_operacional_ft AS "NECESIDAD OPERACIONAL FT",
+                    condicion AS CONDICION,
+                    estado AS ESTADO,
+                    codigo_esbye AS "CODIGO ESBYE",
+                    eod AS EOD,
+                    digito AS DIGITO,
+                    matricula_2025 AS "MATRICULA 2025",
+                    custodio AS CUSTODIO,
+                    observacion AS OBSERVACION
                 FROM vehiculos
                 WHERE 1=1
             """
