@@ -94,10 +94,10 @@ def create_app():
         with app.app_context():
             if models_db:
                 try:
-                    models_db.create_all()
+                    from models import get_db_engine, get_session
+                    models_db.metadata.create_all(bind=get_db_engine())
                     if ModelVehiculo:
                         try:
-                            from models import get_session
                             session = get_session()
                             c = session.query(ModelVehiculo).count()
                             session.close()
@@ -116,18 +116,16 @@ def create_app():
     def debug_db():
         details = {}
         try:
-            uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-            safe_uri = re.sub(r':([^@]+)@', ':****@', uri) if uri else 'NO_URI'
+            from models import get_db_engine
+            engine = get_db_engine()
+            safe_uri = re.sub(r':([^@]+)@', ':****@', str(engine.url)) if engine.url else 'NO_URI'
             details['database_uri'] = safe_uri
             
-            # Test 1: Direct SQL query via engine
-            if models_db and hasattr(models_db, 'engine') and models_db.engine:
-                with models_db.engine.connect() as conn:
-                    from sqlalchemy import text
-                    res = conn.execute(text("SELECT COUNT(*) FROM vehiculos")).scalar()
-                    details['raw_sql_count'] = res
+            with engine.connect() as conn:
+                from sqlalchemy import text
+                res = conn.execute(text("SELECT COUNT(*) FROM vehiculos")).scalar()
+                details['raw_sql_count'] = res
             
-            # Test 2: ORM query via count_vehiculos()
             total = count_vehiculos()
             details['orm_count'] = total
             details['status'] = 'OK'
@@ -143,7 +141,8 @@ def create_app():
     def route_init_db():
         try:
             if models_db:
-                models_db.create_all()
+                from models import get_db_engine
+                models_db.metadata.create_all(bind=get_db_engine())
             res = guardar_excel_en_db(excel_path=EXCEL_FILE, force=False)
             inicializar_filtros()
             return f"✅ Base de datos inicializada e importada con éxito: {res}"
