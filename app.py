@@ -100,9 +100,9 @@ def create_app():
                     models_db.metadata.create_all(bind=get_db_engine())
                     if ModelVehiculo:
                         try:
-                            session = get_session()
-                            c = session.query(ModelVehiculo).count()
-                            session.close()
+                            db_sess = get_session()
+                            c = db_sess.query(ModelVehiculo).count()
+                            db_sess.close()
                             if c == 0 and os.path.exists(EXCEL_FILE):
                                 print(f"Base de datos vacía. Poblando automáticamente desde {EXCEL_FILE}...")
                                 guardar_excel_en_db(excel_path=EXCEL_FILE, force=False)
@@ -210,10 +210,15 @@ def create_app():
 
     @app.route('/login', methods=['GET', 'POST'])
     def login():
+        if session.get('logged_in'):
+            return redirect(url_for('download_excel'))
+
         if request.method == 'POST':
-            username = request.form['username']
-            password = request.form['password']
-            if username == LOGIN_USER and password == LOGIN_PASS:
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '').strip()
+            env_user = os.getenv("LOGIN_USER", "javier76")
+            env_pass = os.getenv("LOGIN_PASS", "mecanico76")
+            if username == env_user and password == env_pass:
                 session['logged_in'] = True
                 return redirect(url_for('download_excel'))
             else:
@@ -223,6 +228,8 @@ def create_app():
 
     @app.route('/download')
     def download_excel():
+        if not session.get('logged_in'):
+            return redirect(url_for('login'))
         try:
             # Obtener todos los registros desde la BD (rápido)
             df = query_vehiculos()
