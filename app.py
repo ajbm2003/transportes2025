@@ -41,7 +41,7 @@ def create_app():
     if models_db:
         models_db.init_app(app)
 
-    EXCEL_FILE = os.environ.get('EXCEL_FILE', 'transportes2025.xlsx')
+    EXCEL_FILE = os.environ.get('EXCEL_FILE', 'transportes2026.xlsx')
     LOGIN_USER = os.getenv("LOGIN_USER", "javier76")
     LOGIN_PASS = os.getenv("LOGIN_PASS", "mecanico76")
 
@@ -182,12 +182,23 @@ def create_app():
     @app.route('/editar_vehiculo', methods=['POST'])
     def editar_vehiculo():
         ord_id = request.form.get('ord')
-        nueva_condicion = request.form.get('condicion')
-        nuevo_estado = request.form.get('estado')
-        nueva_observacion = request.form.get('observacion', '')
+        nueva_condicion = (request.form.get('condicion') or '').strip().upper()
+        nuevo_estado = (request.form.get('estado') or '').strip().upper()
+        nueva_observacion = (request.form.get('observacion') or '').strip()
 
         if not ord_id:
-            return redirect(url_for('index'))
+            return jsonify({'error': 'ORD es requerido'}), 400
+
+        # Validaciones de campos editables (permitiendo vacío si no tiene valor)
+        if nueva_condicion not in ['', 'OPERABLE', 'NO OPERABLE']:
+            return jsonify({'error': 'Condición no válida. Valores permitidos: OPERABLE, NO OPERABLE o vacío.'}), 400
+
+        if nuevo_estado not in ['', 'SERVIBLE', 'INSERVIBLE']:
+            return jsonify({'error': 'Estado no válido. Valores permitidos: SERVIBLE, INSERVIBLE o vacío.'}), 400
+
+        palabras = [p for p in nueva_observacion.split() if p]
+        if len(palabras) > 250:
+            return jsonify({'error': f'La observación no puede superar las 250 palabras (actualmente tiene {len(palabras)} palabras).'}), 400
 
         with excel_lock:
             try:
@@ -197,15 +208,12 @@ def create_app():
                 except Exception:
                     veh = None
                 if veh:
-                    if nueva_condicion is not None:
-                        veh.condicion = nueva_condicion
-                    if nuevo_estado is not None:
-                        veh.estado = nuevo_estado
-                    veh.observacion = nueva_observacion or ''
-                    # Usar session del modelo si está disponible
+                    veh.condicion = nueva_condicion
+                    veh.estado = nuevo_estado
+                    veh.observacion = nueva_observacion
+                    
                     if models_db is not None:
                         models_db.session.commit()
-                        # Invalidar caché para que próximas lecturas reflejen el cambio
                         try:
                             invalidate_db_cache()
                         except Exception:
@@ -215,22 +223,19 @@ def create_app():
                     df = cargar_datos()
                     registro_especifico = df['ORD'] == int(ord_id)
                     if registro_especifico.any():
-                        if nueva_condicion is not None:
-                            df.loc[registro_especifico, 'CONDICION'] = nueva_condicion
-                        if nuevo_estado is not None:
-                            df.loc[registro_especifico, 'ESTADO'] = nuevo_estado
-                        df.loc[registro_especifico, 'OBSERVACION'] = nueva_observacion or ''
+                        df.loc[registro_especifico, 'CONDICION'] = nueva_condicion
+                        df.loc[registro_especifico, 'ESTADO'] = nuevo_estado
+                        df.loc[registro_especifico, 'OBSERVACION'] = nueva_observacion
                         df.to_excel(EXCEL_FILE, index=False)
-                        # invalidar caché local por si la app usa Excel como fuente alternativa
                         try:
                             invalidate_db_cache()
                         except Exception:
                             pass
             except Exception as e:
                 print(f"Error al guardar los cambios: {e}")
-                return "Error interno del servidor", 500
+                return jsonify({'error': 'Error interno del servidor'}), 500
 
-        return redirect(url_for('index'))
+        return jsonify({'success': True, 'message': 'Cambios guardados correctamente'})
 
     return app
 

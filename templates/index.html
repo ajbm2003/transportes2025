@@ -2,98 +2,396 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Vehículos Disponibles</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Transportes - Vehículos Disponibles</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-        th { background-color: #f4f4f4; }
-        .filters { margin-bottom: 20px; }
-        .filters select, .filters button { padding: 5px; margin-right: 10px; }
-        .actions {
-            margin-top: 20px;
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
+        :root {
+            --primary: #1e293b;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --bg-main: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --success: #16a34a;
+            --danger: #dc2626;
         }
-        .actions a { margin-left: 15px; margin-right: 0; text-decoration: none; color: #007BFF; }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            padding: 24px;
+            line-height: 1.5;
+        }
+
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            background-color: var(--card-bg);
+            padding: 20px 24px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .actions-bar a {
+            text-decoration: none;
+            color: white;
+            background-color: var(--accent);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 0.875rem;
+            transition: background 0.2s;
+            display: inline-block;
+        }
+
+        .actions-bar a:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .actions-bar .logout-btn {
+            background-color: #e2e8f0;
+            color: #475569;
+            margin-left: 10px;
+        }
+
+        .actions-bar .logout-btn:hover {
+            background-color: #cbd5e1;
+        }
+
+        .filters-card {
+            background-color: var(--card-bg);
+            padding: 20px 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+        }
+
+        .filter-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: flex-end;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .filter-group label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .filter-group select, .filter-group input {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.875rem;
+            background-color: #fff;
+            color: var(--text-main);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .filter-group select:focus, .filter-group input:focus {
+            border-color: var(--accent);
+        }
+
+        .btn-filter {
+            padding: 8px 20px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 0.875rem;
+            height: 38px;
+        }
+
+        .table-container {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f1f5f9;
+            color: #334155;
+            font-weight: 600;
+            padding: 12px 14px;
+            border-bottom: 2px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        th.editable-col {
+            background-color: #e0f2fe;
+            color: #0369a1;
+        }
+
+        td {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
+        }
+
+        tbody tr:hover {
+            background-color: #f8fafc;
+        }
+
+        .select-editable {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-weight: 600;
+            font-size: 0.8rem;
+            cursor: pointer;
+            outline: none;
+            width: 130px;
+        }
+
+        .select-condicion[data-val=""] {
+            background-color: #f1f5f9;
+            color: #64748b;
+            border-color: #cbd5e1;
+        }
+
+        .select-condicion[data-val="OPERABLE"] {
+            background-color: #dcfce7;
+            color: #15803d;
+            border-color: #86efac;
+        }
+
+        .select-condicion[data-val="NO OPERABLE"] {
+            background-color: #fee2e2;
+            color: #b91c1c;
+            border-color: #fca5a5;
+        }
+
+        .select-estado[data-val=""] {
+            background-color: #f1f5f9;
+            color: #64748b;
+            border-color: #cbd5e1;
+        }
+
+        .select-estado[data-val="SERVIBLE"] {
+            background-color: #e0f2fe;
+            color: #0369a1;
+            border-color: #7dd3fc;
+        }
+
+        .select-estado[data-val="INSERVIBLE"] {
+            background-color: #f1f5f9;
+            color: #475569;
+            border-color: #cbd5e1;
+        }
+
+        .textarea-obs {
+            width: 220px;
+            height: 54px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-family: inherit;
+            font-size: 0.8rem;
+            resize: vertical;
+            outline: none;
+        }
+
+        .textarea-obs:focus {
+            border-color: var(--accent);
+        }
+
+        .word-count-badge {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+            display: block;
+        }
+
+        .word-count-badge.exceeded {
+            color: var(--danger);
+            font-weight: 700;
+        }
+
+        .btn-save {
+            padding: 6px 14px;
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-save:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .pagination-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            margin-top: 16px;
+            border: 1px solid var(--border-color);
+        }
+
+        .pagination-btns {
+            display: flex;
+            gap: 8px;
+        }
+
+        .pagination-btns button {
+            padding: 6px 16px;
+            background-color: white;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+
+        .pagination-btns button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination-info {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
     </style>
 </head>
 <body>
 
-<div class="actions" style="position: absolute; top: 20px; right: 20px;">
-    <a href="{{ url_for('login') }}">Descargar Excel Actualizado</a>
-    {% if session.logged_in %}
-        <a href="{{ url_for('logout') }}">Cerrar sesión</a>
-    {% endif %}
+<div class="header-container">
+    <div>
+        <h1>Gestión de Transportes</h1>
+        <p style="font-size: 0.875rem; color: var(--text-muted);">Filtro y actualización del estado operacional de vehículos</p>
+    </div>
+    <div class="actions-bar">
+        <a href="{{ url_for('login') }}">📊 Descargar Excel Actualizado</a>
+        {% if session.logged_in %}
+            <a href="{{ url_for('logout') }}" class="logout-btn">Cerrar sesión</a>
+        {% endif %}
+    </div>
 </div>
 
-<h1>Vehículos Disponibles</h1>
+<div class="filters-card">
+    <form id="filter-form" method="get" action="{{ url_for('index') }}">
+        <div class="filter-row">
+            <div class="filter-group">
+                <label>División</label>
+                <select name="division" onchange="this.form.submit()">
+                    <option value="">Todas</option>
+                    {% for d in divisiones %}
+                    <option value="{{ d }}" {% if d == selected_division %}selected{% endif %}>{{ d }}</option>
+                    {% endfor %}
+                </select>
+            </div>
 
+            <div class="filter-group">
+                <label>Brigada</label>
+                <select name="brigada" onchange="this.form.submit()" {% if not selected_division %}disabled{% endif %}>
+                    <option value="">Todas</option>
+                    {% for b in brigadas %}
+                    <option value="{{ b }}" {% if b == selected_brigada %}selected{% endif %}>{{ b }}</option>
+                    {% endfor %}
+                </select>
+            </div>
 
-<div class="filters">
-    <form method="get" action="{{ url_for('index') }}">
-        <label>División:
-            <select name="division" onchange="this.form.submit()">
-                <option value="">Todas</option>
-                {% for d in divisiones %}
-                <option value="{{ d }}" {% if d == selected_division %}selected{% endif %}>{{ d }}</option>
-                {% endfor %}
-            </select>
-        </label>
+            <div class="filter-group">
+                <label>Unidad</label>
+                <select name="unidad" onchange="this.form.submit()" {% if not selected_brigada %}disabled{% endif %}>
+                    <option value="">Todas</option>
+                    {% for u in unidades %}
+                    <option value="{{ u }}" {% if u == selected_unidad %}selected{% endif %}>{{ u }}</option>
+                    {% endfor %}
+                </select>
+            </div>
 
-        <label>Brigada:
-            <select name="brigada" onchange="this.form.submit()" {% if not selected_division %}disabled{% endif %}>
-                <option value="">Todas</option>
-                {% for b in brigadas %}
-                <option value="{{ b }}" {% if b == selected_brigada %}selected{% endif %}>{{ b }}</option>
-                {% endfor %}
-            </select>
-        </label>
+            <div class="filter-group">
+                <label>Buscar por Placa</label>
+                <input type="text" name="placa" placeholder="Ingrese placa..." value="{{ request.args.get('placa', '') }}">
+            </div>
 
-        <label>Unidad:
-            <select name="unidad" onchange="this.form.submit()" {% if not selected_brigada %}disabled{% endif %}>
-                <option value="">Todas</option>
-                {% for u in unidades %}
-                <option value="{{ u }}" {% if u == selected_unidad %}selected{% endif %}>{{ u }}</option>
-                {% endfor %}
-            </select>
-        </label>
-
-        <button type="submit">Filtrar</button>
-    </form>
-    <form method="get" action="{{ url_for('index') }}" style="margin-top: 10px;">
-        <label>Buscar por placa:
-            <input type="text" name="placa" placeholder="Ingrese la placa" value="{{ request.args.get('placa', '') }}" style="padding: 5px;">
-        </label>
-        <button type="submit" style="padding: 5px;">Buscar</button>
+            <button type="submit" class="btn-filter">Aplicar Filtros</button>
+        </div>
     </form>
 </div>
 
-<table>
-    <thead>
-        <tr>
-            <th>ORD</th>
-            <th>Marca</th>
-            <th>Clase / Tipo</th>
-            <th>Año</th>
-            <th>Placas</th>
-            <th>Color</th>
-            <th>Condición</th>
-            <th>Estado</th>
-            <th>Observación</th>
-            <th>Acción</th>
-        </tr>
-    </thead>
-    <tbody id="table-body">
-        <!-- filas se inyectan por JS -->
-    </tbody>
-</table>
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ORD.</th>
+                <th>Clase / Tipo</th>
+                <th>Chasis</th>
+                <th>Motor</th>
+                <th>Año</th>
+                <th>Registro</th>
+                <th>Placas</th>
+                <th>DIVISIÓN</th>
+                <th>BRIGADA</th>
+                <th>Unidad</th>
+                <th>NECESIDAD OPERACIONAL FT</th>
+                <th class="editable-col">CONDICIÓN ✏️</th>
+                <th class="editable-col">ESTADO ✏️</th>
+                <th class="editable-col">OBSERVACIÓN (Máx 250 Palabras) ✏️</th>
+                <th>Acción</th>
+            </tr>
+        </thead>
+        <tbody id="table-body">
+            <!-- Filas inyectadas por JS -->
+        </tbody>
+    </table>
+</div>
 
-<div id="pagination" style="margin-top: 10px; display:flex; gap:8px; align-items:center;">
-    <button id="prev-btn">Anterior</button>
-    <span id="page-info"></span>
-    <button id="next-btn">Siguiente</button>
+<div class="pagination-bar">
+    <span id="page-info" class="pagination-info">Cargando...</span>
+    <div class="pagination-btns">
+        <button id="prev-btn">◀ Anterior</button>
+        <button id="next-btn">Siguiente ▶</button>
+    </div>
 </div>
 
 <script>
@@ -101,7 +399,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const perPage = 50;
     let currentPage = 1;
 
-    // Leer filtros desde la UI
     function getFilters() {
         const params = new URLSearchParams();
         const division = document.querySelector('select[name="division"]').value;
@@ -115,7 +412,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return params;
     }
 
-    async function fetchPage(page=1) {
+    async function fetchPage(page = 1) {
         currentPage = page;
         const params = getFilters();
         params.set('page', page);
@@ -127,64 +424,126 @@ document.addEventListener('DOMContentLoaded', function () {
         updatePagination(data.total, data.page, data.per_page);
     }
 
+    function countWords(text) {
+        const clean = text.trim();
+        return clean ? clean.split(/\s+/).length : 0;
+    }
+
     function renderTable(rows) {
         const tbody = document.getElementById('table-body');
         tbody.innerHTML = '';
+
+        if (rows.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="15" style="text-align: center; padding: 24px; color: var(--text-muted);">No se encontraron vehículos.</td></tr>`;
+            return;
+        }
+
         for (const v of rows) {
             const tr = document.createElement('tr');
+            const rawCond = (v['CONDICION'] || '').trim().toUpperCase();
+            const condVal = (rawCond === 'OPERABLE' || rawCond === 'NO OPERABLE') ? rawCond : '';
 
-            // Crear columnas y formulario en una celda de acción
+            const rawEstado = (v['ESTADO'] || '').trim().toUpperCase();
+            const estadoVal = (rawEstado === 'SERVIBLE' || rawEstado === 'INSERVIBLE') ? rawEstado : '';
+
+            const obsText = v['OBSERVACION'] || '';
+
             tr.innerHTML = `
-                <td>${v['ORD']}</td>
-                <td>${v['MARCA']}</td>
-                <td>${v['CLASE / TIPO']}</td>
+                <td><strong>${v['ORD']}</strong></td>
+                <td>${v['CLASE / TIPO'] || ''}</td>
+                <td>${v['CHASIS'] || ''}</td>
+                <td>${v['MOTOR'] || ''}</td>
                 <td>${v['ANO'] || ''}</td>
-                <td>${v['PLACAS']}</td>
-                <td>${v['COLOR']}</td>
+                <td>${v['REGISTRO'] || ''}</td>
+                <td><strong>${v['PLACAS'] || ''}</strong></td>
+                <td>${v['DIVISION'] || ''}</td>
+                <td>${v['BRIGADA'] || ''}</td>
+                <td>${v['UNIDAD'] || ''}</td>
+                <td>${v['NECESIDAD OPERACIONAL FT'] || ''}</td>
                 <td>
-                    <select class="condicion">
-                        <option value="OPERABLE" ${v['CONDICION']==='OPERABLE' ? 'selected' : ''}>OPERABLE</option>
-                        <option value="NO OPERABLE" ${v['CONDICION']==='NO OPERABLE' ? 'selected' : ''}>NO OPERABLE</option>
-                        <option value="REMATE" ${v['CONDICION']==='REMATE' ? 'selected' : ''}>REMATE</option>
+                    <select class="select-editable select-condicion" data-val="${condVal}">
+                        <option value="" ${!condVal ? 'selected' : ''}>-- Seleccionar --</option>
+                        <option value="OPERABLE" ${condVal === 'OPERABLE' ? 'selected' : ''}>OPERABLE</option>
+                        <option value="NO OPERABLE" ${condVal === 'NO OPERABLE' ? 'selected' : ''}>NO OPERABLE</option>
                     </select>
                 </td>
                 <td>
-                    <select class="estado">
-                        <option value="" ${!v['ESTADO'] ? 'selected' : ''}></option>
-                        <option value="SERVIBLE" ${v['ESTADO']==='SERVIBLE' ? 'selected' : ''}>SERVIBLE</option>
-                        <option value="INSERVIBLE" ${v['ESTADO']==='INSERVIBLE' ? 'selected' : ''}>INSERVIBLE</option>
-                        <option value="MANTENIMIENTO" ${v['ESTADO']==='MANTENIMIENTO' ? 'selected' : ''}>MANTENIMIENTO</option>
-                        <option value="MUSEO" ${v['ESTADO']==='MUSEO' ? 'selected' : ''}>MUSEO</option>
+                    <select class="select-editable select-estado" data-val="${estadoVal}">
+                        <option value="" ${!estadoVal ? 'selected' : ''}>-- Seleccionar --</option>
+                        <option value="SERVIBLE" ${estadoVal === 'SERVIBLE' ? 'selected' : ''}>SERVIBLE</option>
+                        <option value="INSERVIBLE" ${estadoVal === 'INSERVIBLE' ? 'selected' : ''}>INSERVIBLE</option>
                     </select>
                 </td>
-                <td><input type="text" class="observacion" value="${(v['OBSERVACION']||'').replace(/"/g,'&quot;')}" style="width:120px;"></td>
-                <td><button class="save-btn">Guardar</button></td>
+                <td>
+                    <textarea class="textarea-obs" placeholder="Escriba observaciones (máx 250 palabras)...">${obsText.replace(/"/g, '&quot;')}</textarea>
+                    <span class="word-count-badge">0 / 250 palabras</span>
+                </td>
+                <td>
+                    <button class="btn-save">Guardar</button>
+                </td>
             `;
             tbody.appendChild(tr);
 
-            // Añadir handler al botón Guardar
-            tr.querySelector('.save-btn').addEventListener('click', async () => {
+            // Manejo dinámico del estilo de selects
+            const condSelect = tr.querySelector('.select-condicion');
+            const estadoSelect = tr.querySelector('.select-estado');
+
+            condSelect.addEventListener('change', (e) => {
+                condSelect.setAttribute('data-val', e.target.value);
+            });
+
+            estadoSelect.addEventListener('change', (e) => {
+                estadoSelect.setAttribute('data-val', e.target.value);
+            });
+
+            // Contador dinámico de palabras
+            const obsArea = tr.querySelector('.textarea-obs');
+            const wordBadge = tr.querySelector('.word-count-badge');
+
+            function updateCounter() {
+                const words = countWords(obsArea.value);
+                wordBadge.textContent = `${words} / 250 palabras`;
+                if (words > 250) {
+                    wordBadge.classList.add('exceeded');
+                } else {
+                    wordBadge.classList.remove('exceeded');
+                }
+            }
+
+            obsArea.addEventListener('input', updateCounter);
+            updateCounter();
+
+            // Guardar cambios
+            tr.querySelector('.btn-save').addEventListener('click', async () => {
+                const words = countWords(obsArea.value);
+                if (words > 250) {
+                    alert(`La observación supera el límite permitido de 250 palabras. Actualmente contiene ${words} palabras.`);
+                    return;
+                }
+
                 const ord = v['ORD'];
-                const condicion = tr.querySelector('.condicion').value;
-                const estado = tr.querySelector('.estado').value;
-                const observacion = tr.querySelector('.observacion').value;
+                const condicion = condSelect.value;
+                const estado = estadoSelect.value;
+                const observacion = obsArea.value;
+
                 const formData = new FormData();
                 formData.append('ord', ord);
                 formData.append('condicion', condicion);
                 formData.append('estado', estado);
                 formData.append('observacion', observacion);
+
                 try {
                     const res = await fetch('{{ url_for("editar_vehiculo") }}', { method: 'POST', body: formData });
-                    if (res.ok) {
-                        alert('Cambios guardados');
-                        // invalidar caché en servidor ya hecho; refrescar la página actual
+                    const resData = await res.json();
+                    if (res.ok && resData.success) {
+                        alert('✅ Cambios guardados correctamente.');
                         fetchPage(currentPage);
                     } else {
-                        alert('Error al guardar');
+                        alert('❌ Error: ' + (resData.error || 'No se pudieron guardar los cambios.'));
                     }
                 } catch (err) {
                     console.error(err);
-                    alert('Error al guardar');
+                    alert('❌ Error de conexión al guardar los cambios.');
                 }
             });
         }
@@ -193,27 +552,25 @@ document.addEventListener('DOMContentLoaded', function () {
     function updatePagination(total, page, per_page) {
         const pageInfo = document.getElementById('page-info');
         const totalPages = Math.max(1, Math.ceil(total / per_page));
-        pageInfo.textContent = `Página ${page} de ${totalPages} — ${total} registros`;
+        pageInfo.textContent = `Mostrando página ${page} de ${totalPages} (Total: ${total} vehículos)`;
         document.getElementById('prev-btn').disabled = page <= 1;
         document.getElementById('next-btn').disabled = page >= totalPages;
     }
 
-    document.getElementById('prev-btn').addEventListener('click', () => { if (currentPage>1) fetchPage(currentPage-1); });
-    document.getElementById('next-btn').addEventListener('click', () => { fetchPage(currentPage+1); });
+    document.getElementById('prev-btn').addEventListener('click', () => { if (currentPage > 1) fetchPage(currentPage - 1); });
+    document.getElementById('next-btn').addEventListener('click', () => { fetchPage(currentPage + 1); });
 
-    // Interceptar formulario de filtros (evitar recarga)
-    document.querySelectorAll('form[action="{{ url_for("index") }}"]').forEach(f => {
-        f.addEventListener('submit', function(e) {
+    document.querySelectorAll('#filter-form').forEach(f => {
+        f.addEventListener('submit', function (e) {
             e.preventDefault();
             fetchPage(1);
         });
     });
-    // También interceptar selects con onchange que antes hacían submit
-    document.querySelectorAll('.filters select').forEach(s => {
+
+    document.querySelectorAll('.filter-group select').forEach(s => {
         s.addEventListener('change', () => fetchPage(1));
     });
 
-    // Cargar primera página al inicio
     fetchPage(1);
 });
 </script>

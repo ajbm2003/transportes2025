@@ -67,7 +67,7 @@ def main():
                 # Mostrar algunos registros de ejemplo
                 print('\nPrimeros 5 vehículos:')
                 for v in Vehiculo.query.order_by(Vehiculo.ord).limit(5):
-                    print(f'  ORD {v.ord}: {v.marca or "N/A"} {v.clase_tipo or "N/A"} - División: {v.division or "N/A"}')
+                    print(f'  ORD {v.ord}: {v.clase_tipo or "N/A"} - Placas: {v.placas or "N/A"} - División: {v.division or "N/A"}')
             else:
                 print('\n⚠️ ADVERTENCIA: No se importaron registros a PostgreSQL')
                 

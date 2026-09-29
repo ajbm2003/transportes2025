@@ -1,6 +1,7 @@
 import pandas as pd
 import unicodedata
 import re
+# pyrefly: ignore [missing-import]
 from flask import current_app
 import os
 import time
@@ -19,13 +20,11 @@ except Exception:
 _DB_CACHE = {'df': None, 'ts': 0}
 _DEFAULT_TTL = 10  # segundos; configurable desde current_app.config['DB_CACHE_TTL']
 
-EXCEL_FILE = 'transportes2025.xlsx'
+EXCEL_FILE = os.environ.get('EXCEL_FILE', 'transportes2026.xlsx')
 COLUMNAS = [
-    'ORD', 'CLASE / TIPO', 'MARCA', 'MODELO', 'CHASIS', 'MOTOR', 'ANO', 'REGISTRO',
-    'PLACAS', 'COLOR', 'TONELAJE', 'CILINDRAJE', 'COMBUSTIBLE', '# PASAJ',
-    'VALOR ESBYE', 'VALOR COMERCIAL', 'DIVISION', 'BRIGADA', 'UNIDAD',
-    'NECESIDAD OPERACIONAL FT', 'CONDICION', 'ESTADO', 'CODIGO ESBYE',
-    'EOD', 'DIGITO', 'MATRICULA 2025', 'CUSTODIO', 'OBSERVACION'
+    'ORD', 'CLASE / TIPO', 'CHASIS', 'MOTOR', 'ANO', 'REGISTRO',
+    'PLACAS', 'DIVISION', 'BRIGADA', 'UNIDAD',
+    'NECESIDAD OPERACIONAL FT', 'CONDICION', 'ESTADO', 'OBSERVACION'
 ]
 
 def normalizar_columna(col):
@@ -61,7 +60,7 @@ def cargar_datos():
         pass
 
     # Fallback: leer Excel - usar específicamente la hoja "DETALLE"
-    df = pd.read_excel(EXCEL_FILE, sheet_name='DETALLE', header=0, dtype={'MATRICULA 2025': str})
+    df = pd.read_excel(EXCEL_FILE, sheet_name='DETALLE', header=0, dtype=str)
     df.columns = [normalizar_columna(c) for c in df.columns]
     df = limpiar_nans(df)
     # Asegurar orden por ORD cuando se lee desde Excel
@@ -88,31 +87,17 @@ def df_from_db():
                 SELECT
                     ord AS ORD,
                     clase_tipo AS "CLASE / TIPO",
-                    marca AS MARCA,
-                    modelo AS MODELO,
                     chasis AS CHASIS,
                     motor AS MOTOR,
                     ano AS ANO,
                     registro AS REGISTRO,
                     placas AS PLACAS,
-                    color AS COLOR,
-                    tonelaje AS TONELAJE,
-                    cilindraje AS CILINDRAJE,
-                    combustible AS COMBUSTIBLE,
-                    num_pasajeros AS "# PASAJ",
-                    valor_esbye AS "VALOR ESBYE",
-                    valor_comercial AS "VALOR COMERCIAL",
                     division AS DIVISION,
                     brigada AS BRIGADA,
                     unidad AS UNIDAD,
                     necesidad_operacional_ft AS "NECESIDAD OPERACIONAL FT",
                     condicion AS CONDICION,
                     estado AS ESTADO,
-                    codigo_esbye AS "CODIGO ESBYE",
-                    eod AS EOD,
-                    digito AS DIGITO,
-                    matricula_2025 AS "MATRICULA 2025",
-                    custodio AS CUSTODIO,
                     observacion AS OBSERVACION
                 FROM vehiculos
                 ORDER BY ord
@@ -238,115 +223,104 @@ def invalidate_db_cache():
     _DB_CACHE['ts'] = 0
 
 
-# --- FUNCION PARA IMPORTAR EXCEL A LA DB ---
-def guardar_excel_en_db(force=False):
+def guardar_excel_en_db(excel_path=None, force=False):
     """
     Lee el Excel y lo inserta en la base de datos usando el modelo Vehiculo.
     Si force=True, borra todos los registros antes de importar.
     """
     from models import Vehiculo, db
-    excel_file = os.environ.get('EXCEL_FILE', EXCEL_FILE)
+    excel_file = excel_path or os.environ.get('EXCEL_FILE', 'transportes2026.xlsx')
     
     print(f'Leyendo archivo: {excel_file}')
     
-    # Verificar que existe la hoja DETALLE
+    if not os.path.exists(excel_file):
+        msg = f"❌ ERROR: No se encontró el archivo '{excel_file}' en la carpeta del proyecto."
+        print(f"\n{msg}")
+        print(f"💡 Solución: Asegúrate de colocar tu archivo Excel con el nombre '{excel_file}' dentro de la carpeta del proyecto:\n   {os.getcwd()}")
+        return msg
+    
     xls = pd.ExcelFile(excel_file)
     print(f'Hojas disponibles en el Excel: {xls.sheet_names}')
     
-    if 'DETALLE' not in xls.sheet_names:
-        print(f'\n¡ERROR! No se encontró la hoja "DETALLE" en el archivo Excel.')
-        print(f'Hojas disponibles: {xls.sheet_names}')
-        return "Error: Hoja DETALLE no encontrada en el archivo Excel"
+    # Elegir la hoja "DETALLE" si existe, o la primera hoja disponible
+    sheet_to_read = 'DETALLE' if 'DETALLE' in xls.sheet_names else xls.sheet_names[0]
+    print(f'Usando hoja: {sheet_to_read}')
     
-    print(f'Leyendo hoja: DETALLE')
-    
-    # Leer la hoja DETALLE con header=0 (primera fila son los encabezados)
-    df = pd.read_excel(excel_file, sheet_name='DETALLE', header=0, dtype=str)  # dtype=str para leer todo como texto
-    
-    print(f'\nColumnas originales: {list(df.columns)}')
+    # Detección automática de la fila de encabezados (buscar dónde están ORD, CLASE o PLACAS)
+    try:
+        df_raw = pd.read_excel(excel_file, sheet_name=sheet_to_read, header=None, dtype=str)
+        header_row = 0
+        for idx, row in df_raw.head(15).iterrows():
+            row_str_upper = [str(cell).upper().strip() for cell in row.values if pd.notna(cell)]
+            if any('ORD' in cell for cell in row_str_upper) or any('CLASE' in cell for cell in row_str_upper) or any('PLACA' in cell for cell in row_str_upper):
+                header_row = idx
+                break
+    except Exception as e:
+        print(f'Aviso al detectar encabezado: {e}')
+        header_row = 0
+        
+    df = pd.read_excel(excel_file, sheet_name=sheet_to_read, header=header_row, dtype=str)
     
     # Normalizar nombres de columnas
-    df.columns = [normalizar_columna(c) for c in df.columns]
-    print(f'Columnas normalizadas: {list(df.columns)}')
-    print(f'Total de filas en Excel: {len(df)}')
+    df.columns = [normalizar_columna(str(c)) for c in df.columns]
+    print(f'Columnas detectadas ({len(df.columns)}): {list(df.columns)}')
     
-    # Mostrar primeras 3 filas para verificar
-    print(f'\nPrimeras 3 filas:')
-    print(df.head(3).to_string())
-    
-    # Verificar que tenemos las columnas necesarias
+    # Si 'ORD' no está en las columnas, buscar alternativas o autogenerar
     if 'ORD' not in df.columns:
-        print('\n¡ERROR! No se encontró la columna ORD en la hoja DETALLE.')
-        print(f'Columnas disponibles: {list(df.columns)}')
-        return "Error: Columna ORD no encontrada en la hoja DETALLE"
+        possible_ord_cols = [c for c in df.columns if 'ORD' in c or 'ITEM' in c or 'N' in c]
+        if possible_ord_cols:
+            df.rename(columns={possible_ord_cols[0]: 'ORD'}, inplace=True)
+        else:
+            df['ORD'] = [str(i + 1) for i in range(len(df))]
     
     df = df.fillna('')
+    print(f'Total de filas en Excel a procesar: {len(df)}')
     
     if force:
         deleted = Vehiculo.query.delete()
         db.session.commit()
-        print(f'\nRegistros eliminados: {deleted}')
+        print(f'Registros eliminados de la base de datos previamente: {deleted}')
     
     count = 0
     errores = 0
     
-    print(f'\nIniciando importación...')
     for idx, row in df.iterrows():
-        # Convertir ORD a entero (es el único campo numérico requerido)
-        try:
-            ord_val = int(row.get('ORD')) if row.get('ORD') not in (None, '') else None
-        except Exception as e:
-            ord_val = None
-        
-        if ord_val is None:
-            errores += 1
+        raw_ord = str(row.get('ORD', '')).strip()
+        if not raw_ord:
             continue
-        
         try:
-            # Todos los demás campos se guardan como string tal cual vienen
+            ord_val = int(float(raw_ord))
+        except Exception:
+            ord_val = idx + 1
+            
+        try:
+            # Obtener y limpiar valores de las 14 columnas
             v = Vehiculo(
                 ord=ord_val,
-                clase_tipo=str(row.get('CLASE / TIPO', '')),
-                marca=str(row.get('MARCA', '')),
-                modelo=str(row.get('MODELO', '')),
-                chasis=str(row.get('CHASIS', '')),
-                motor=str(row.get('MOTOR', '')),
-                ano=str(row.get('ANO', '')),  # Guardar como string
-                registro=str(row.get('REGISTRO', '')),
-                placas=str(row.get('PLACAS', '')),
-                color=str(row.get('COLOR', '')),
-                tonelaje=str(row.get('TONELAJE', '')),
-                cilindraje=str(row.get('CILINDRAJE', '')),
-                combustible=str(row.get('COMBUSTIBLE', '')),
-                num_pasajeros=str(row.get('# PASAJ', '')),  # Guardar como string
-                valor_esbye=str(row.get('VALOR ESBYE', '')),
-                valor_comercial=str(row.get('VALOR COMERCIAL', '')),
-                division=str(row.get('DIVISION', '')),
-                brigada=str(row.get('BRIGADA', '')),
-                unidad=str(row.get('UNIDAD', '')),
-                necesidad_operacional_ft=str(row.get('NECESIDAD OPERACIONAL FT', '')),
-                condicion=str(row.get('CONDICION', '')),
-                estado=str(row.get('ESTADO', '')),
-                codigo_esbye=str(row.get('CODIGO ESBYE', '')),
-                eod=str(row.get('EOD', '')),
-                digito=str(row.get('DIGITO', '')),
-                matricula_2025=str(row.get('MATRICULA 2025', '')),
-                custodio=str(row.get('CUSTODIO', '')),
-                observacion=str(row.get('OBSERVACION', ''))
+                clase_tipo=str(row.get('CLASE / TIPO', row.get('CLASE TIPO', row.get('CLASE', '')))).strip(),
+                chasis=str(row.get('CHASIS', '')).strip(),
+                motor=str(row.get('MOTOR', '')).strip(),
+                ano=str(row.get('ANO', row.get('ANO', ''))).strip(),
+                registro=str(row.get('REGISTRO', '')).strip(),
+                placas=str(row.get('PLACAS', row.get('PLACA', ''))).strip(),
+                division=str(row.get('DIVISION', '')).strip(),
+                brigada=str(row.get('BRIGADA', '')).strip(),
+                unidad=str(row.get('UNIDAD', '')).strip(),
+                necesidad_operacional_ft=str(row.get('NECESIDAD OPERACIONAL FT', row.get('NECESIDAD OPERACIONAL', ''))).strip(),
+                condicion=str(row.get('CONDICION', '')).strip().upper(),
+                estado=str(row.get('ESTADO', '')).strip().upper(),
+                observacion=str(row.get('OBSERVACION', '')).strip()
             )
             db.session.add(v)
             count += 1
             
-            # Commit cada 100 registros para evitar problemas de memoria
             if count % 100 == 0:
                 db.session.commit()
-                print(f'Procesados {count} registros...')
         except Exception as e:
-            print(f'Fila {idx+2} (ORD={ord_val}): Error al crear vehículo: {e}')
-            db.session.rollback()  # Hacer rollback en caso de error
+            print(f'Aviso en fila {idx+1} (ORD={ord_val}): {e}')
+            db.session.rollback()
             errores += 1
     
-    # Commit final
     try:
         db.session.commit()
         invalidate_db_cache()
@@ -354,8 +328,8 @@ def guardar_excel_en_db(force=False):
         print(f'Error en commit final: {e}')
         db.session.rollback()
     
-    print(f'\nImportación completada: {count} registros importados, {errores} errores')
-    return f"{count} registros importados, {errores} errores"
+    print(f'\n✅ Importación completada: {count} registros cargados, {errores} errores.')
+    return f"{count} registros importados correctamente, {errores} errores"
 
 def query_vehiculos(division=None, brigada=None, unidad=None, placa=None, limit=None, offset=None):
     """
@@ -370,31 +344,17 @@ def query_vehiculos(division=None, brigada=None, unidad=None, placa=None, limit=
                 SELECT
                     ord AS ORD,
                     clase_tipo AS "CLASE / TIPO",
-                    marca AS MARCA,
-                    modelo AS MODELO,
                     chasis AS CHASIS,
                     motor AS MOTOR,
                     ano AS ANO,
                     registro AS REGISTRO,
                     placas AS PLACAS,
-                    color AS COLOR,
-                    tonelaje AS TONELAJE,
-                    cilindraje AS CILINDRAJE,
-                    combustible AS COMBUSTIBLE,
-                    num_pasajeros AS "# PASAJ",
-                    valor_esbye AS "VALOR ESBYE",
-                    valor_comercial AS "VALOR COMERCIAL",
                     division AS DIVISION,
                     brigada AS BRIGADA,
                     unidad AS UNIDAD,
                     necesidad_operacional_ft AS "NECESIDAD OPERACIONAL FT",
                     condicion AS CONDICION,
                     estado AS ESTADO,
-                    codigo_esbye AS "CODIGO ESBYE",
-                    eod AS EOD,
-                    digito AS DIGITO,
-                    matricula_2025 AS "MATRICULA 2025",
-                    custodio AS CUSTODIO,
                     observacion AS OBSERVACION
                 FROM vehiculos
                 WHERE 1=1
