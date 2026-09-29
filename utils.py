@@ -75,68 +75,25 @@ def cargar_datos():
 
 
 def df_from_db():
-    """Convierte los registros de la tabla Vehiculo a un DataFrame con las columnas normalizadas esperadas.
-    Implementación rápida usando SQL directo si models_db está disponible.
-    """
-    # Si disponemos del engine de SQLAlchemy, usar read_sql_query para rapidez
-    if models_db is not None:
-        try:
-            engine = models_db.engine
-            # Consulta que selecciona y aliasa columnas para coincidir con COLUMNAS
-            sql = """
-                SELECT
-                    ord AS ORD,
-                    clase_tipo AS "CLASE / TIPO",
-                    chasis AS CHASIS,
-                    motor AS MOTOR,
-                    ano AS ANO,
-                    registro AS REGISTRO,
-                    placas AS PLACAS,
-                    division AS DIVISION,
-                    brigada AS BRIGADA,
-                    unidad AS UNIDAD,
-                    necesidad_operacional_ft AS "NECESIDAD OPERACIONAL FT",
-                    condicion AS CONDICION,
-                    estado AS ESTADO,
-                    observacion AS OBSERVACION
-                FROM vehiculos
-                ORDER BY ord
-            """
-            df = pd.read_sql_query(sql, engine)
-            # Normalizar columnas y valores mínimamente
-            df.columns = [normalizar_columna(c) for c in df.columns]
-            df = limpiar_nans(df)
-            # Asegurar que ORD es numérico y ordenado (por si acaso)
-            try:
+    """Convierte los registros de la tabla Vehiculo a un DataFrame con las columnas normalizadas esperadas."""
+    try:
+        from models import Vehiculo, db
+        if Vehiculo is not None and db is not None:
+            vehiculos = db.session.query(Vehiculo).order_by(Vehiculo.ord.asc()).all()
+            records = [v.to_dict() for v in vehiculos]
+            if records:
+                df = pd.DataFrame(records)
+                df.columns = [normalizar_columna(c) for c in df.columns]
                 if 'ORD' in df.columns:
                     df['ORD'] = pd.to_numeric(df['ORD'], errors='coerce')
                     df = df.sort_values(by=['ORD'])
-            except Exception as e:
-                print(f'Advertencia al ordenar datos desde DB (post-process): {e}')
-            return df
-        except Exception as e:
-            print(f'Error leyendo desde DB con read_sql_query: {e}')
-            # caemos al método por objetos ORM más lento
+                df = limpiar_nans(df)
+                return df
+    except Exception as e:
+        print(f'Error leyendo desde DB (ORM db.session): {e}')
 
-    # Fallback: leer mediante ORM (compatible pero más lento)
-    records = []
-    try:
-        for v in Vehiculo.query.order_by(Vehiculo.ord.asc()).all():
-            records.append(v.to_dict())
-    except Exception as e:
-        print(f'Error leyendo desde DB (ORM): {e}')
-    if not records:
-        return pd.DataFrame(columns=COLUMNAS)
-    df = pd.DataFrame(records)
-    df.columns = [normalizar_columna(c) for c in df.columns]
-    try:
-        if 'ORD' in df.columns:
-            df['ORD'] = pd.to_numeric(df['ORD'], errors='coerce')
-            df = df.sort_values(by=['ORD'])
-    except Exception as e:
-        print(f'Advertencia al ordenar datos desde DB (ORM post-process): {e}')
-    df = limpiar_nans(df)
-    return df
+    return pd.DataFrame(columns=COLUMNAS)
+
 
 
 # Funciones rápidas para obtener divisiones / brigadas / unidades desde la BD sin leer todo el Excel
@@ -330,12 +287,12 @@ def guardar_excel_en_db(excel_path=None, force=False):
 
 def query_vehiculos(division=None, brigada=None, unidad=None, placa=None, limit=None, offset=None):
     """
-    Consulta directa desde la BD usando el ORM Vehiculo dentro del contexto de Flask.
+    Consulta directa desde la BD usando db.session.query(Vehiculo) dentro del contexto de Flask.
     """
     try:
-        from models import Vehiculo
-        if Vehiculo is not None:
-            q = Vehiculo.query
+        from models import Vehiculo, db
+        if Vehiculo is not None and db is not None:
+            q = db.session.query(Vehiculo)
             if division:
                 q = q.filter(Vehiculo.division == division)
             if brigada:
@@ -364,12 +321,12 @@ def query_vehiculos(division=None, brigada=None, unidad=None, placa=None, limit=
 
 def count_vehiculos(division=None, brigada=None, unidad=None, placa=None):
     """
-    Devuelve el total de registros que cumplen los filtros usando ORM.
+    Devuelve el total de registros que cumplen los filtros usando db.session.query(Vehiculo).
     """
     try:
-        from models import Vehiculo
-        if Vehiculo is not None:
-            q = Vehiculo.query
+        from models import Vehiculo, db
+        if Vehiculo is not None and db is not None:
+            q = db.session.query(Vehiculo)
             if division:
                 q = q.filter(Vehiculo.division == division)
             if brigada:

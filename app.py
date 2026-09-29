@@ -108,6 +108,20 @@ def create_app():
     except Exception as e:
         print(f"Aviso general en app_context al inicio: {e}")
 
+    @app.route('/debug-db')
+    def debug_db():
+        try:
+            uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+            safe_uri = re.sub(r':([^@]+)@', ':****@', uri) if uri else 'NO_URI'
+            total = count_vehiculos()
+            return jsonify({
+                'status': 'OK',
+                'total_vehiculos_en_db': total,
+                'database_uri_conectado': safe_uri
+            })
+        except Exception as e:
+            return jsonify({'status': 'ERROR', 'error': str(e)}), 200
+
     @app.route('/init-db')
     def route_init_db():
         try:
