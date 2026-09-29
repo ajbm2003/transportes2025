@@ -12,8 +12,8 @@ except Exception:
     def load_dotenv():
         print('Aviso: python-dotenv no está instalado. Las variables de entorno no se cargarán desde .env. Instala python-dotenv si quieres cargar .env automáticamente.')
 
-# Añadir invalidate_db_cache al importar utils
-from utils import cargar_datos, limpiar_nans, obtener_opciones, filtrar_vehiculos, COLUMNAS, get_divisiones_db, get_brigadas_db, get_unidades_db, invalidate_db_cache, query_vehiculos, count_vehiculos
+# Añadir invalidate_db_cache y guardar_excel_en_db al importar utils
+from utils import cargar_datos, limpiar_nans, obtener_opciones, filtrar_vehiculos, COLUMNAS, get_divisiones_db, get_brigadas_db, get_unidades_db, invalidate_db_cache, query_vehiculos, count_vehiculos, guardar_excel_en_db
 
 
 def create_app():
@@ -24,6 +24,8 @@ def create_app():
     # Configurar SQLAlchemy
     database_url = os.environ.get('DATABASE_URL')
     if database_url:
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace("postgres://", "postgresql://", 1)
         app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     else:
         # Fallback: usar sqlite local para pruebas si no hay DATABASE_URL
@@ -39,7 +41,10 @@ def create_app():
         print('Aviso: Flask-SQLAlchemy no está disponible. Instala Flask-SQLAlchemy para usar Postgres.')
 
     if models_db:
-        models_db.init_app(app)
+        try:
+            models_db.init_app(app)
+        except Exception as e:
+            print(f'Aviso al inicializar db: {e}')
 
     EXCEL_FILE = os.environ.get('EXCEL_FILE', 'transportes2026.xlsx')
     LOGIN_USER = os.getenv("LOGIN_USER", "javier76")
@@ -70,38 +75,66 @@ def create_app():
                 print(f'Advertencia: no se pudo inicializar filtros usando consultas rápidas: {e}')
             # Fallback: leer DataFrame completo si las consultas rápidas fallan
             df = cargar_datos()
-            divisiones_global, _, _ = obtener_opciones(df)
-            for division in divisiones_global:
-                brigadas = obtener_opciones(df, division=division)[1]
-                brigadas_global[division] = brigadas
-                for brigada in brigadas:
-                    unidades = obtener_opciones(df, division=division, brigada=brigada)[2]
-                    unidades_global[(division, brigada)] = unidades
+            if df is not None and not df.empty and 'DIVISION' in df.columns:
+                divisiones_global, _, _ = obtener_opciones(df)
+                for division in divisiones_global:
+                    brigadas = obtener_opciones(df, division=division)[1]
+                    brigadas_global[division] = brigadas
+                    for brigada in brigadas:
+                        unidades = obtener_opciones(df, division=division, brigada=brigada)[2]
+                        unidades_global[(division, brigada)] = unidades
         except Exception as e:
-            print(f"Error al inicializar filtros: {e}")
+            print(f"Aviso al inicializar filtros: {e}")
+            divisiones_global = []
+            brigadas_global = {}
+            unidades_global = {}
 
-    # Inicializar filtros al arrancar
-    with app.app_context():
-        inicializar_filtros()
+    # Inicializar base de datos y filtros al arrancar la app de forma totalmente segura
+    try:
+        with app.app_context():
+            if models_db:
+                try:
+                    models_db.create_all()
+                    if ModelVehiculo:
+                        try:
+                            if ModelVehiculo.query.count() == 0 and os.path.exists(EXCEL_FILE):
+                                print(f"Base de datos vacía. Poblando automáticamente desde {EXCEL_FILE}...")
+                                guardar_excel_en_db(excel_path=EXCEL_FILE, force=False)
+                        except Exception as e:
+                            print(f"Aviso al verificar contenido de la tabla vehiculos: {e}")
+                except Exception as e:
+                    print(f"Aviso al verificar/crear tablas en la BD: {e}")
+            inicializar_filtros()
+    except Exception as e:
+        print(f"Aviso general en app_context al inicio: {e}")
+
+    @app.route('/init-db')
+    def route_init_db():
+        try:
+            if models_db:
+                models_db.create_all()
+            res = guardar_excel_en_db(excel_path=EXCEL_FILE, force=False)
+            inicializar_filtros()
+            return f"✅ Base de datos inicializada e importada con éxito: {res}"
+        except Exception as e:
+            return f"❌ Error al inicializar la base de datos: {e}", 200
 
 
     @app.route('/')
     def index():
         try:
-            # No cargar todos los datos aquí: la plantilla solicitará páginas vía AJAX
             division_filtro = request.args.get('division', '')
             brigada_filtro = request.args.get('brigada', '')
             unidad_filtro = request.args.get('unidad', '')
             placa_filtro = request.args.get('placa', '')
 
-            brigadas = brigadas_global.get(division_filtro, [])
-            unidades = unidades_global.get((division_filtro, brigada_filtro), [])
+            brigadas = brigadas_global.get(division_filtro, []) if brigadas_global else []
+            unidades = unidades_global.get((division_filtro, brigada_filtro), []) if unidades_global else []
 
-            # Pasar solo metadatos y filtros iniciales; la tabla se llena por JS
             return render_template(
                 'index.html',
-                vehicles=[],  # vacío: se llenará por JS
-                divisiones=divisiones_global,
+                vehicles=[],
+                divisiones=divisiones_global or [],
                 brigadas=brigadas,
                 unidades=unidades,
                 selected_division=division_filtro,
@@ -110,7 +143,16 @@ def create_app():
             )
         except Exception as e:
             print(f"Error al cargar la página principal: {e}")
-            return "Error interno del servidor", 500
+            return render_template(
+                'index.html',
+                vehicles=[],
+                divisiones=[],
+                brigadas=[],
+                unidades=[],
+                selected_division='',
+                selected_brigada='',
+                selected_unidad=''
+            )
 
     # API para paginación / búsqueda (devuelve JSON)
     @app.route('/api/vehiculos')
@@ -127,11 +169,11 @@ def create_app():
             df_page = query_vehiculos(division=division, brigada=brigada, unidad=unidad, placa=placa, limit=per_page, offset=offset)
             total = count_vehiculos(division=division, brigada=brigada, unidad=unidad, placa=placa)
 
-            records = df_page.to_dict(orient='records')
-            return jsonify({'total': total, 'page': page, 'per_page': per_page, 'vehicles': records})
+            records = df_page.to_dict(orient='records') if (df_page is not None and not df_page.empty) else []
+            return jsonify({'total': total or 0, 'page': page, 'per_page': per_page, 'vehicles': records})
         except Exception as e:
             print(f'Error en API /api/vehiculos: {e}')
-            return jsonify({'error': 'error interno'}), 500
+            return jsonify({'total': 0, 'page': 1, 'per_page': 50, 'vehicles': [], 'error': str(e)}), 200
 
 
     @app.route('/login', methods=['GET', 'POST'])
