@@ -97,7 +97,8 @@ def create_app():
                     models_db.create_all()
                     if ModelVehiculo:
                         try:
-                            if ModelVehiculo.query.count() == 0 and os.path.exists(EXCEL_FILE):
+                            c = models_db.session.query(ModelVehiculo).count()
+                            if c == 0 and os.path.exists(EXCEL_FILE):
                                 print(f"Base de datos vacía. Poblando automáticamente desde {EXCEL_FILE}...")
                                 guardar_excel_en_db(excel_path=EXCEL_FILE, force=False)
                         except Exception as e:
@@ -110,17 +111,30 @@ def create_app():
 
     @app.route('/debug-db')
     def debug_db():
+        details = {}
         try:
             uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
             safe_uri = re.sub(r':([^@]+)@', ':****@', uri) if uri else 'NO_URI'
+            details['database_uri'] = safe_uri
+            
+            # Test 1: Direct SQL query via engine
+            if models_db and hasattr(models_db, 'engine') and models_db.engine:
+                with models_db.engine.connect() as conn:
+                    from sqlalchemy import text
+                    res = conn.execute(text("SELECT COUNT(*) FROM vehiculos")).scalar()
+                    details['raw_sql_count'] = res
+            
+            # Test 2: ORM query via count_vehiculos()
             total = count_vehiculos()
-            return jsonify({
-                'status': 'OK',
-                'total_vehiculos_en_db': total,
-                'database_uri_conectado': safe_uri
-            })
+            details['orm_count'] = total
+            details['status'] = 'OK'
+            return jsonify(details)
         except Exception as e:
-            return jsonify({'status': 'ERROR', 'error': str(e)}), 200
+            import traceback
+            details['status'] = 'ERROR'
+            details['error'] = str(e)
+            details['traceback'] = traceback.format_exc()
+            return jsonify(details), 200
 
     @app.route('/init-db')
     def route_init_db():
@@ -260,7 +274,7 @@ def create_app():
             try:
                 # Intentar actualizar en la DB
                 try:
-                    veh = ModelVehiculo.query.filter_by(ord=int(ord_id)).first() if ModelVehiculo is not None else None
+                    veh = models_db.session.query(ModelVehiculo).filter_by(ord=int(ord_id)).first() if (ModelVehiculo is not None and models_db is not None) else None
                 except Exception:
                     veh = None
                 if veh:
