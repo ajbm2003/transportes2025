@@ -223,28 +223,34 @@ def create_app():
 
     @app.route('/download')
     def download_excel():
-        if not session.get('logged_in'):
-            return redirect(url_for('login'))
-        # Usar query_vehiculos para obtener todos los registros desde la BD (rápido)
-        df = query_vehiculos()
-        # Asegurar orden por ORD al exportar
         try:
-            if 'ORD' in df.columns:
-                df['ORD_SORT'] = pd.to_numeric(df['ORD'], errors='coerce')
-                df = df.sort_values(by=['ORD_SORT']).drop(columns=['ORD_SORT'])
-        except Exception as e:
-            print(f'Advertencia al ordenar antes de exportar: {e}')
+            # Obtener todos los registros desde la BD (rápido)
+            df = query_vehiculos()
+            if df is None or df.empty:
+                return "No hay datos disponibles en la base de datos para exportar.", 404
 
-        # Escribir el Excel en memoria y enviarlo (evita I/O en disco)
-        try:
+            # Asegurar orden por ORD al exportar
+            try:
+                if 'ORD' in df.columns:
+                    df['ORD_SORT'] = pd.to_numeric(df['ORD'], errors='coerce')
+                    df = df.sort_values(by=['ORD_SORT']).drop(columns=['ORD_SORT'])
+            except Exception as e:
+                print(f'Advertencia al ordenar antes de exportar: {e}')
+
+            # Escribir el Excel en memoria y enviarlo (evita I/O en disco)
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df.to_excel(writer, index=False)
+                df.to_excel(writer, index=False, sheet_name='DETALLE')
             output.seek(0)
-            return send_file(output, as_attachment=True, download_name='transportes_actualizado.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            return send_file(
+                output,
+                as_attachment=True,
+                download_name='transportes_actualizado.xlsx',
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
         except Exception as e:
             print(f'Error al generar Excel en memoria: {e}')
-            return "Error generando el archivo", 500
+            return f"Error generando el archivo: {e}", 500
 
 
     @app.route('/logout')

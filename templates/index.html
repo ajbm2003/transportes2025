@@ -309,7 +309,7 @@
         <p style="font-size: 0.875rem; color: var(--text-muted);">Filtro y actualización del estado operacional de vehículos</p>
     </div>
     <div class="actions-bar">
-        <a href="{{ url_for('login') }}">📊 Descargar Excel Actualizado</a>
+        <a href="{{ url_for('download_excel') }}">📊 Descargar Excel Actualizado</a>
         {% if session.logged_in %}
             <a href="{{ url_for('logout') }}" class="logout-btn">Cerrar sesión</a>
         {% endif %}
