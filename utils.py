@@ -141,52 +141,42 @@ def df_from_db():
 
 # Funciones rápidas para obtener divisiones / brigadas / unidades desde la BD sin leer todo el Excel
 def get_divisiones_db():
-    """Devuelve lista ordenada de divisiones usando la BD si está disponible, sino usa cargar_datos()."""
-    if models_db is not None:
-        try:
-            sql = "SELECT DISTINCT division FROM vehiculos WHERE division IS NOT NULL AND division <> '' ORDER BY division"
-            df = pd.read_sql_query(sql, models_db.engine)
-            return sorted(df['division'].dropna().unique().tolist())
-        except Exception as e:
-            print(f'Advertencia al obtener divisiones desde DB: {e}')
+    """Devuelve lista ordenada de divisiones usando el ORM de la BD."""
     try:
-        df = cargar_datos()
-        return sorted(df['DIVISION'].dropna().unique().tolist()) if (df is not None and not df.empty and 'DIVISION' in df.columns) else []
-    except Exception:
-        return []
+        from models import Vehiculo, db
+        if Vehiculo is not None:
+            res = db.session.query(Vehiculo.division).filter(Vehiculo.division.isnot(None), Vehiculo.division != '').distinct().order_by(Vehiculo.division).all()
+            divs = [r[0] for r in res if r[0]]
+            if divs:
+                return divs
+    except Exception as e:
+        print(f'Advertencia al obtener divisiones desde DB: {e}')
+    return []
 
 
 def get_brigadas_db(division):
-    if models_db is not None:
-        try:
-            sql = "SELECT DISTINCT brigada FROM vehiculos WHERE division = :division AND brigada IS NOT NULL AND brigada <> '' ORDER BY brigada"
-            df = pd.read_sql_query(sql, models_db.engine, params={'division': division})
-            return sorted(df['brigada'].dropna().unique().tolist())
-        except Exception as e:
-            print(f'Advertencia al obtener brigadas desde DB: {e}')
     try:
-        df = cargar_datos()
-        if df is not None and not df.empty and 'DIVISION' in df.columns and 'BRIGADA' in df.columns:
-            return sorted(df[df['DIVISION'] == division]['BRIGADA'].dropna().unique().tolist())
-    except Exception:
-        pass
+        from models import Vehiculo, db
+        if Vehiculo is not None and division:
+            res = db.session.query(Vehiculo.brigada).filter(Vehiculo.division == division, Vehiculo.brigada.isnot(None), Vehiculo.brigada != '').distinct().order_by(Vehiculo.brigada).all()
+            brigadas = [r[0] for r in res if r[0]]
+            if brigadas:
+                return brigadas
+    except Exception as e:
+        print(f'Advertencia al obtener brigadas desde DB: {e}')
     return []
 
 
 def get_unidades_db(division, brigada):
-    if models_db is not None:
-        try:
-            sql = "SELECT DISTINCT unidad FROM vehiculos WHERE division = :division AND brigada = :brigada AND unidad IS NOT NULL AND unidad <> '' ORDER BY unidad"
-            df = pd.read_sql_query(sql, models_db.engine, params={'division': division, 'brigada': brigada})
-            return sorted(df['unidad'].dropna().unique().tolist())
-        except Exception as e:
-            print(f'Advertencia al obtener unidades desde DB: {e}')
     try:
-        df = cargar_datos()
-        if df is not None and not df.empty and 'DIVISION' in df.columns and 'BRIGADA' in df.columns and 'UNIDAD' in df.columns:
-            return sorted(df[(df['DIVISION'] == division) & (df['BRIGADA'] == brigada)]['UNIDAD'].dropna().unique().tolist())
-    except Exception:
-        pass
+        from models import Vehiculo, db
+        if Vehiculo is not None and division and brigada:
+            res = db.session.query(Vehiculo.unidad).filter(Vehiculo.division == division, Vehiculo.brigada == brigada, Vehiculo.unidad.isnot(None), Vehiculo.unidad != '').distinct().order_by(Vehiculo.unidad).all()
+            unidades = [r[0] for r in res if r[0]]
+            if unidades:
+                return unidades
+    except Exception as e:
+        print(f'Advertencia al obtener unidades desde DB: {e}')
     return []
 
 
