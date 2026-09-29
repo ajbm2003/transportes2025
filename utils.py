@@ -340,138 +340,57 @@ def guardar_excel_en_db(excel_path=None, force=False):
 
 def query_vehiculos(division=None, brigada=None, unidad=None, placa=None, limit=None, offset=None):
     """
-    Consulta rápida desde la BD con soporte de offset (paginación).
-    El filtro por placa se hace en SQL si posible, normalizando la búsqueda.
+    Consulta directa desde la BD usando el ORM Vehiculo dentro del contexto de Flask.
     """
-    if models_db is not None:
-        try:
-            # Detectar motor (Postgres o SQLite)
-            engine_name = str(models_db.engine.url.get_backend_name()).lower()
-            sql = """
-                SELECT
-                    ord AS ORD,
-                    clase_tipo AS "CLASE / TIPO",
-                    chasis AS CHASIS,
-                    motor AS MOTOR,
-                    ano AS ANO,
-                    registro AS REGISTRO,
-                    placas AS PLACAS,
-                    division AS DIVISION,
-                    brigada AS BRIGADA,
-                    unidad AS UNIDAD,
-                    necesidad_operacional_ft AS "NECESIDAD OPERACIONAL FT",
-                    condicion AS CONDICION,
-                    estado AS ESTADO,
-                    observacion AS OBSERVACION
-                FROM vehiculos
-                WHERE 1=1
-            """
-            params = {}
+    try:
+        from models import Vehiculo
+        if Vehiculo is not None:
+            q = Vehiculo.query
             if division:
-                sql += " AND division = :division"
-                params['division'] = division
+                q = q.filter(Vehiculo.division == division)
             if brigada:
-                sql += " AND brigada = :brigada"
-                params['brigada'] = brigada
+                q = q.filter(Vehiculo.brigada == brigada)
             if unidad:
-                sql += " AND unidad = :unidad"
-                params['unidad'] = unidad
-            # Filtro por placa en SQL si posible
+                q = q.filter(Vehiculo.unidad == unidad)
             if placa:
                 placa_norm = re.sub(r'[^A-Z0-9]', '', placa.strip().upper())
-                if engine_name == "postgresql":
-                    # Usar ILIKE y regexp_replace para normalizar en SQL
-                    sql += " AND regexp_replace(upper(placas), '[^A-Z0-9]', '', 'g') ILIKE :placa"
-                    params['placa'] = f"%{placa_norm}%"
-                elif engine_name == "sqlite":
-                    # Usar LIKE y upper() para SQLite
-                    sql += " AND replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(upper(placas),' ',''),'-',''),'.',''),'/',''),',',''),';',''),':',''),'_',''),'#',''),'Ñ','N') LIKE :placa"
-                    params['placa'] = f"%{placa_norm}%"
-                else:
-                    # Otros motores: filtrar en pandas después
-                    pass
-            sql += " ORDER BY ord"
-            if limit is not None:
-                sql += " LIMIT :limit"
-                params['limit'] = int(limit)
+                q = q.filter(Vehiculo.placas.ilike(f"%{placa_norm}%"))
+            
+            q = q.order_by(Vehiculo.ord.asc())
             if offset is not None:
-                sql += " OFFSET :offset"
-                params['offset'] = int(offset)
+                q = q.offset(int(offset))
+            if limit is not None:
+                q = q.limit(int(limit))
+            
+            records = [v.to_dict() for v in q.all()]
+            if records:
+                df = pd.DataFrame(records)
+                return limpiar_nans(df)
+    except Exception as e:
+        print(f'Advertencia: error en query_vehiculos (ORM): {e}')
 
-            df = pd.read_sql_query(sql, models_db.engine, params=params)
-            df.columns = [normalizar_columna(c) for c in df.columns]
-            df = limpiar_nans(df)
-
-            # Si el motor no soporta filtro SQL por placa, filtrar en pandas
-            if placa and engine_name not in ("postgresql", "sqlite") and 'PLACAS' in df.columns:
-                placa_norm = re.sub(r'[^A-Z0-9]', '', placa.strip().upper())
-                df = df[df['PLACAS'].astype(str).str.contains(placa_norm, na=False)]
-
-            return df
-        except Exception as e:
-            print(f'Advertencia: error en query_vehiculos (SQL rápido): {e}')
-            # caer al fallback
-
-    # Fallback: usar cargar_datos y filtrar en pandas (más lento)
-    df = cargar_datos()
-    if division:
-        df = df[df['DIVISION'] == division] if 'DIVISION' in df.columns else df
-    if brigada:
-        df = df[df['BRIGADA'] == brigada] if 'BRIGADA' in df.columns else df
-    if unidad:
-        df = df[df['UNIDAD'] == unidad] if 'UNIDAD' in df.columns else df
-    if placa and 'PLACAS' in df.columns:
-        placa_norm = re.sub(r'[^A-Z0-9]', '', placa.strip().upper())
-        df = df[df['PLACAS'].astype(str).str.contains(placa_norm, na=False)]
-    if offset is not None and limit is not None:
-        df = df.iloc[offset: offset + limit]
-    elif limit is not None:
-        df = df.head(limit)
-    try:
-        if 'ORD' in df.columns:
-            df['ORD_SORT'] = pd.to_numeric(df['ORD'], errors='coerce')
-            df = df.sort_values(by=['ORD_SORT']).drop(columns=['ORD_SORT'])
-    except Exception:
-        pass
-    return df
+    return pd.DataFrame(columns=COLUMNAS)
 
 
 def count_vehiculos(division=None, brigada=None, unidad=None, placa=None):
     """
-    Devuelve el total de registros que cumplen filtros (rápido usando COUNT en DB si es posible).
+    Devuelve el total de registros que cumplen los filtros usando ORM.
     """
-    if models_db is not None:
-        try:
-            sql = "SELECT COUNT(*) AS cnt FROM vehiculos WHERE 1=1"
-            params = {}
+    try:
+        from models import Vehiculo
+        if Vehiculo is not None:
+            q = Vehiculo.query
             if division:
-                sql += " AND division = :division"
-                params['division'] = division
+                q = q.filter(Vehiculo.division == division)
             if brigada:
-                sql += " AND brigada = :brigada"
-                params['brigada'] = brigada
+                q = q.filter(Vehiculo.brigada == brigada)
             if unidad:
-                sql += " AND unidad = :unidad"
-                params['unidad'] = unidad
-            # Si se incluye placa, realizar conteo conservador (sin normalizar en SQL)
-            # Para placas, mejor fallback: leer matching parcial en pandas si es necesario
+                q = q.filter(Vehiculo.unidad == unidad)
             if placa:
-                # usar fallback lento: obtener df y contar
-                df = query_vehiculos(division=division, brigada=brigada, unidad=unidad, placa=placa)
-                return int(len(df))
-            df = pd.read_sql_query(sql, models_db.engine, params=params)
-            return int(df['cnt'].iloc[0]) if not df.empty else 0
-        except Exception as e:
-            print(f'Advertencia al contar vehiculos en DB: {e}')
-    # Fallback: contar desde cargar_datos()
-    df = cargar_datos()
-    if division:
-        df = df[df['DIVISION'] == division] if 'DIVISION' in df.columns else df
-    if brigada:
-        df = df[df['BRIGADA'] == brigada] if 'BRIGADA' in df.columns else df
-    if unidad:
-        df = df[df['UNIDAD'] == unidad] if 'UNIDAD' in df.columns else df
-    if placa and 'PLACAS' in df.columns:
-        placa_norm = re.sub(r'[^A-Z0-9]', '', placa.strip().upper())
-        df = df[df['PLACAS'].astype(str).str.contains(placa_norm, na=False)]
-    return int(len(df))
+                placa_norm = re.sub(r'[^A-Z0-9]', '', placa.strip().upper())
+                q = q.filter(Vehiculo.placas.ilike(f"%{placa_norm}%"))
+            return q.count()
+    except Exception as e:
+        print(f'Advertencia al contar vehiculos en DB (ORM): {e}')
+
+    return 0
