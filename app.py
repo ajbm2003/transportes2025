@@ -97,7 +97,10 @@ def create_app():
                     models_db.create_all()
                     if ModelVehiculo:
                         try:
-                            c = models_db.session.query(ModelVehiculo).count()
+                            from models import get_session
+                            session = get_session()
+                            c = session.query(ModelVehiculo).count()
+                            session.close()
                             if c == 0 and os.path.exists(EXCEL_FILE):
                                 print(f"Base de datos vacía. Poblando automáticamente desde {EXCEL_FILE}...")
                                 guardar_excel_en_db(excel_path=EXCEL_FILE, force=False)
@@ -274,20 +277,21 @@ def create_app():
             try:
                 # Intentar actualizar en la DB
                 try:
-                    veh = models_db.session.query(ModelVehiculo).filter_by(ord=int(ord_id)).first() if (ModelVehiculo is not None and models_db is not None) else None
+                    from models import get_session
+                    session_db = get_session()
+                    veh = session_db.query(ModelVehiculo).filter_by(ord=int(ord_id)).first() if ModelVehiculo is not None else None
                 except Exception:
                     veh = None
                 if veh:
                     veh.condicion = nueva_condicion
                     veh.estado = nuevo_estado
                     veh.observacion = nueva_observacion
-                    
-                    if models_db is not None:
-                        models_db.session.commit()
-                        try:
-                            invalidate_db_cache()
-                        except Exception:
-                            pass
+                    session_db.commit()
+                    session_db.close()
+                    try:
+                        invalidate_db_cache()
+                    except Exception:
+                        pass
                 else:
                     # Si no existe en la DB, actualizar el Excel (compatibilidad)
                     df = cargar_datos()

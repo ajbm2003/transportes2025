@@ -77,35 +77,35 @@ def cargar_datos():
 def df_from_db():
     """Convierte los registros de la tabla Vehiculo a un DataFrame con las columnas normalizadas esperadas."""
     try:
-        from models import Vehiculo, db
-        if Vehiculo is not None and db is not None:
-            vehiculos = db.session.query(Vehiculo).order_by(Vehiculo.ord.asc()).all()
-            records = [v.to_dict() for v in vehiculos]
-            if records:
-                df = pd.DataFrame(records)
-                df.columns = [normalizar_columna(c) for c in df.columns]
-                if 'ORD' in df.columns:
-                    df['ORD'] = pd.to_numeric(df['ORD'], errors='coerce')
-                    df = df.sort_values(by=['ORD'])
-                df = limpiar_nans(df)
-                return df
+        from models import Vehiculo, get_session
+        session = get_session()
+        vehiculos = session.query(Vehiculo).order_by(Vehiculo.ord.asc()).all()
+        records = [v.to_dict() for v in vehiculos]
+        session.close()
+        if records:
+            df = pd.DataFrame(records)
+            df.columns = [normalizar_columna(c) for c in df.columns]
+            if 'ORD' in df.columns:
+                df['ORD'] = pd.to_numeric(df['ORD'], errors='coerce')
+                df = df.sort_values(by=['ORD'])
+            df = limpiar_nans(df)
+            return df
     except Exception as e:
-        print(f'Error leyendo desde DB (ORM db.session): {e}')
+        print(f'Error leyendo desde DB: {e}')
 
     return pd.DataFrame(columns=COLUMNAS)
 
 
-
-# Funciones rápidas para obtener divisiones / brigadas / unidades desde la BD sin leer todo el Excel
 def get_divisiones_db():
     """Devuelve lista ordenada de divisiones usando el ORM de la BD."""
     try:
-        from models import Vehiculo, db
-        if Vehiculo is not None:
-            res = db.session.query(Vehiculo.division).filter(Vehiculo.division.isnot(None), Vehiculo.division != '').distinct().order_by(Vehiculo.division).all()
-            divs = [r[0] for r in res if r[0]]
-            if divs:
-                return divs
+        from models import Vehiculo, get_session
+        session = get_session()
+        res = session.query(Vehiculo.division).filter(Vehiculo.division.isnot(None), Vehiculo.division != '').distinct().order_by(Vehiculo.division).all()
+        divs = [r[0] for r in res if r[0]]
+        session.close()
+        if divs:
+            return divs
     except Exception as e:
         print(f'Advertencia al obtener divisiones desde DB: {e}')
     return []
@@ -113,10 +113,12 @@ def get_divisiones_db():
 
 def get_brigadas_db(division):
     try:
-        from models import Vehiculo, db
-        if Vehiculo is not None and division:
-            res = db.session.query(Vehiculo.brigada).filter(Vehiculo.division == division, Vehiculo.brigada.isnot(None), Vehiculo.brigada != '').distinct().order_by(Vehiculo.brigada).all()
+        from models import Vehiculo, get_session
+        if division:
+            session = get_session()
+            res = session.query(Vehiculo.brigada).filter(Vehiculo.division == division, Vehiculo.brigada.isnot(None), Vehiculo.brigada != '').distinct().order_by(Vehiculo.brigada).all()
             brigadas = [r[0] for r in res if r[0]]
+            session.close()
             if brigadas:
                 return brigadas
     except Exception as e:
@@ -126,10 +128,12 @@ def get_brigadas_db(division):
 
 def get_unidades_db(division, brigada):
     try:
-        from models import Vehiculo, db
-        if Vehiculo is not None and division and brigada:
-            res = db.session.query(Vehiculo.unidad).filter(Vehiculo.division == division, Vehiculo.brigada == brigada, Vehiculo.unidad.isnot(None), Vehiculo.unidad != '').distinct().order_by(Vehiculo.unidad).all()
+        from models import Vehiculo, get_session
+        if division and brigada:
+            session = get_session()
+            res = session.query(Vehiculo.unidad).filter(Vehiculo.division == division, Vehiculo.brigada == brigada, Vehiculo.unidad.isnot(None), Vehiculo.unidad != '').distinct().order_by(Vehiculo.unidad).all()
             unidades = [r[0] for r in res if r[0]]
+            session.close()
             if unidades:
                 return unidades
     except Exception as e:
@@ -182,7 +186,8 @@ def guardar_excel_en_db(excel_path=None, force=False):
     Lee el Excel y lo inserta en la base de datos usando el modelo Vehiculo.
     Si force=True, borra todos los registros antes de importar.
     """
-    from models import Vehiculo, db
+    from models import Vehiculo, get_session
+    session = get_session()
     excel_file = excel_path or os.environ.get('EXCEL_FILE', 'transportes2026.xlsx')
     
     print(f'Leyendo archivo: {excel_file}')
@@ -196,11 +201,9 @@ def guardar_excel_en_db(excel_path=None, force=False):
     xls = pd.ExcelFile(excel_file)
     print(f'Hojas disponibles en el Excel: {xls.sheet_names}')
     
-    # Elegir la hoja "DETALLE" si existe, o la primera hoja disponible
     sheet_to_read = 'DETALLE' if 'DETALLE' in xls.sheet_names else xls.sheet_names[0]
     print(f'Usando hoja: {sheet_to_read}')
     
-    # Detección automática de la fila de encabezados (buscar dónde están ORD, CLASE o PLACAS)
     try:
         df_raw = pd.read_excel(excel_file, sheet_name=sheet_to_read, header=None, dtype=str)
         header_row = 0
@@ -215,11 +218,9 @@ def guardar_excel_en_db(excel_path=None, force=False):
         
     df = pd.read_excel(excel_file, sheet_name=sheet_to_read, header=header_row, dtype=str)
     
-    # Normalizar nombres de columnas
     df.columns = [normalizar_columna(str(c)) for c in df.columns]
     print(f'Columnas detectadas ({len(df.columns)}): {list(df.columns)}')
     
-    # Si 'ORD' no está en las columnas, buscar alternativas o autogenerar
     if 'ORD' not in df.columns:
         possible_ord_cols = [c for c in df.columns if 'ORD' in c or 'ITEM' in c or 'N' in c]
         if possible_ord_cols:
@@ -231,8 +232,8 @@ def guardar_excel_en_db(excel_path=None, force=False):
     print(f'Total de filas en Excel a procesar: {len(df)}')
     
     if force:
-        deleted = Vehiculo.query.delete()
-        db.session.commit()
+        deleted = session.query(Vehiculo).delete()
+        session.commit()
         print(f'Registros eliminados de la base de datos previamente: {deleted}')
     
     count = 0
@@ -248,7 +249,6 @@ def guardar_excel_en_db(excel_path=None, force=False):
             ord_val = idx + 1
             
         try:
-            # Obtener y limpiar valores de las 14 columnas
             v = Vehiculo(
                 ord=ord_val,
                 clase_tipo=str(row.get('CLASE / TIPO', row.get('CLASE TIPO', row.get('CLASE', '')))).strip(),
@@ -265,79 +265,84 @@ def guardar_excel_en_db(excel_path=None, force=False):
                 estado=str(row.get('ESTADO', '')).strip().upper(),
                 observacion=str(row.get('OBSERVACION', '')).strip()
             )
-            db.session.add(v)
+            session.add(v)
             count += 1
             
             if count % 100 == 0:
-                db.session.commit()
+                session.commit()
         except Exception as e:
             print(f'Aviso en fila {idx+1} (ORD={ord_val}): {e}')
-            db.session.rollback()
+            session.rollback()
             errores += 1
     
     try:
-        db.session.commit()
+        session.commit()
         invalidate_db_cache()
     except Exception as e:
         print(f'Error en commit final: {e}')
-        db.session.rollback()
+        session.rollback()
+    finally:
+        session.close()
     
     print(f'\n✅ Importación completada: {count} registros cargados, {errores} errores.')
     return f"{count} registros importados correctamente, {errores} errores"
 
 def query_vehiculos(division=None, brigada=None, unidad=None, placa=None, limit=None, offset=None):
     """
-    Consulta directa desde la BD usando db.session.query(Vehiculo) dentro del contexto de Flask.
+    Consulta directa desde la BD usando get_session().
     """
     try:
-        from models import Vehiculo, db
-        if Vehiculo is not None and db is not None:
-            q = db.session.query(Vehiculo)
-            if division:
-                q = q.filter(Vehiculo.division == division)
-            if brigada:
-                q = q.filter(Vehiculo.brigada == brigada)
-            if unidad:
-                q = q.filter(Vehiculo.unidad == unidad)
-            if placa:
-                placa_norm = re.sub(r'[^A-Z0-9]', '', placa.strip().upper())
-                q = q.filter(Vehiculo.placas.ilike(f"%{placa_norm}%"))
-            
-            q = q.order_by(Vehiculo.ord.asc())
-            if offset is not None:
-                q = q.offset(int(offset))
-            if limit is not None:
-                q = q.limit(int(limit))
-            
-            records = [v.to_dict() for v in q.all()]
-            if records:
-                df = pd.DataFrame(records)
-                return limpiar_nans(df)
+        from models import Vehiculo, get_session
+        session = get_session()
+        q = session.query(Vehiculo)
+        if division:
+            q = q.filter(Vehiculo.division == division)
+        if brigada:
+            q = q.filter(Vehiculo.brigada == brigada)
+        if unidad:
+            q = q.filter(Vehiculo.unidad == unidad)
+        if placa:
+            placa_norm = re.sub(r'[^A-Z0-9]', '', placa.strip().upper())
+            q = q.filter(Vehiculo.placas.ilike(f"%{placa_norm}%"))
+        
+        q = q.order_by(Vehiculo.ord.asc())
+        if offset is not None:
+            q = q.offset(int(offset))
+        if limit is not None:
+            q = q.limit(int(limit))
+        
+        records = [v.to_dict() for v in q.all()]
+        session.close()
+        if records:
+            df = pd.DataFrame(records)
+            return limpiar_nans(df)
     except Exception as e:
-        print(f'Advertencia: error en query_vehiculos (ORM): {e}')
+        print(f'Advertencia: error en query_vehiculos: {e}')
 
     return pd.DataFrame(columns=COLUMNAS)
 
 
 def count_vehiculos(division=None, brigada=None, unidad=None, placa=None):
     """
-    Devuelve el total de registros que cumplen los filtros usando db.session.query(Vehiculo).
+    Devuelve el total de registros que cumplen los filtros usando get_session().
     """
     try:
-        from models import Vehiculo, db
-        if Vehiculo is not None and db is not None:
-            q = db.session.query(Vehiculo)
-            if division:
-                q = q.filter(Vehiculo.division == division)
-            if brigada:
-                q = q.filter(Vehiculo.brigada == brigada)
-            if unidad:
-                q = q.filter(Vehiculo.unidad == unidad)
-            if placa:
-                placa_norm = re.sub(r'[^A-Z0-9]', '', placa.strip().upper())
-                q = q.filter(Vehiculo.placas.ilike(f"%{placa_norm}%"))
-            return q.count()
+        from models import Vehiculo, get_session
+        session = get_session()
+        q = session.query(Vehiculo)
+        if division:
+            q = q.filter(Vehiculo.division == division)
+        if brigada:
+            q = q.filter(Vehiculo.brigada == brigada)
+        if unidad:
+            q = q.filter(Vehiculo.unidad == unidad)
+        if placa:
+            placa_norm = re.sub(r'[^A-Z0-9]', '', placa.strip().upper())
+            q = q.filter(Vehiculo.placas.ilike(f"%{placa_norm}%"))
+        count = q.count()
+        session.close()
+        return count
     except Exception as e:
-        print(f'Advertencia al contar vehiculos en DB (ORM): {e}')
+        print(f'Advertencia al contar vehiculos en DB: {e}')
 
     return 0

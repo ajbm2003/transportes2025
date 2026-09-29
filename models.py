@@ -1,7 +1,33 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import scoped_session, sessionmaker
+import os
+
 db = SQLAlchemy()
+
+_engine = None
+_SessionFactory = None
+
+def get_db_engine():
+    global _engine
+    if _engine is None:
+        database_url = os.environ.get('DATABASE_URL')
+        if database_url:
+            if database_url.startswith("postgres://"):
+                database_url = database_url.replace("postgres://", "postgresql://", 1)
+        else:
+            database_url = 'sqlite:///transportes.db'
+        _engine = create_engine(database_url, pool_pre_ping=True, pool_recycle=300)
+    return _engine
+
+def get_session():
+    global _SessionFactory
+    engine = get_db_engine()
+    if _SessionFactory is None:
+        _SessionFactory = scoped_session(sessionmaker(bind=engine))
+    return _SessionFactory()
 
 
 class Vehiculo(db.Model):
