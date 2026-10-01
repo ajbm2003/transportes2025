@@ -140,10 +140,34 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
             border: 1px solid var(--border-color);
             overflow-x: auto;
+            width: 100%;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Scrollbar horizontal claramente visible */
+        .table-container::-webkit-scrollbar {
+            height: 12px;
+        }
+
+        .table-container::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 8px;
+            margin: 0 4px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 8px;
+            border: 2px solid #f1f5f9;
+        }
+
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: #2563eb;
         }
 
         table {
             width: 100%;
+            min-width: 1550px; /* Garantiza ancho suficiente para todas las columnas */
             border-collapse: collapse;
             font-size: 0.85rem;
             text-align: left;
@@ -357,6 +381,9 @@
             <button type="submit" class="btn-filter">Aplicar Filtros</button>
         </div>
     </form>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">
+    <span>📋 Lista de Vehículos</span>
+    <span>↔️ Desliza horizontalmente (o usa Shift + rueda del mouse) para ver todas las columnas</span>
 </div>
 
 <div class="table-container">
