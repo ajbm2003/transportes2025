@@ -174,8 +174,8 @@
 
         table {
             width: 100%;
-            min-width: 1550px;
-            /* Garantiza ancho suficiente para todas las columnas */
+            min-width: 1350px;
+            /* Garantiza ancho suficiente para todas las columnas restantes */
             border-collapse: collapse;
             font-size: 0.85rem;
             text-align: left;
@@ -414,7 +414,6 @@
                         <th>DIVISIÓN</th>
                         <th>BRIGADA</th>
                         <th>Unidad</th>
-                        <th>NECESIDAD OPERACIONAL FT</th>
                         <th class="editable-col">CONDICIÓN ✏️</th>
                         <th class="editable-col">ESTADO ✏️</th>
                         <th class="editable-col">OBSERVACIÓN (Máx 250 Palabras) ✏️</th>
@@ -475,7 +474,7 @@
                     tbody.innerHTML = '';
 
                     if (rows.length === 0) {
-                        tbody.innerHTML = `<tr><td colspan="15" style="text-align: center; padding: 24px; color: var(--text-muted);">No se encontraron vehículos.</td></tr>`;
+                        tbody.innerHTML = `<tr><td colspan="14" style="text-align: center; padding: 24px; color: var(--text-muted);">No se encontraron vehículos.</td></tr>`;
                         return;
                     }
 
