@@ -1,6 +1,17 @@
-from app import create_app
-from utils import guardar_excel_en_db
+import sys
 import os
+
+# Si falta Flask, intentar relanzar automáticamente usando el entorno virtual .venv del proyecto
+try:
+    from app import create_app
+    from utils import guardar_excel_en_db
+except ModuleNotFoundError as e:
+    venv_python = os.path.join(os.path.dirname(__file__), '.venv', 'bin', 'python')
+    if os.path.exists(venv_python) and sys.executable != venv_python:
+        print("⚡ Detectado entorno virtual .venv. Ejecutando mediante el entorno virtual...")
+        os.execv(venv_python, [venv_python] + sys.argv)
+    else:
+        raise e
 
 def main():
     app = create_app()

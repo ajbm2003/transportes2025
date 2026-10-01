@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -21,7 +22,11 @@
             --danger: #dc2626;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
         body {
             font-family: 'Inter', sans-serif;
@@ -39,7 +44,7 @@
             background-color: var(--card-bg);
             padding: 20px 24px;
             border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
             border: 1px solid var(--border-color);
         }
 
@@ -80,7 +85,7 @@
             padding: 20px 24px;
             border-radius: 12px;
             margin-bottom: 24px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
             border: 1px solid var(--border-color);
         }
 
@@ -107,7 +112,8 @@
             color: var(--text-muted);
         }
 
-        .filter-group select, .filter-group input {
+        .filter-group select,
+        .filter-group input {
             padding: 8px 12px;
             border: 1px solid var(--border-color);
             border-radius: 6px;
@@ -118,7 +124,8 @@
             transition: border-color 0.2s;
         }
 
-        .filter-group select:focus, .filter-group input:focus {
+        .filter-group select:focus,
+        .filter-group input:focus {
             border-color: var(--accent);
         }
 
@@ -137,7 +144,7 @@
         .table-container {
             background-color: var(--card-bg);
             border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
             border: 1px solid var(--border-color);
             overflow-x: auto;
             width: 100%;
@@ -167,7 +174,8 @@
 
         table {
             width: 100%;
-            min-width: 1550px; /* Garantiza ancho suficiente para todas las columnas */
+            min-width: 1550px;
+            /* Garantiza ancho suficiente para todas las columnas */
             border-collapse: collapse;
             font-size: 0.85rem;
             text-align: left;
@@ -325,157 +333,163 @@
         }
     </style>
 </head>
+
 <body>
 
-<div class="header-container">
-    <div>
-        <h1>Gestión de Transportes</h1>
-        <p style="font-size: 0.875rem; color: var(--text-muted);">Filtro y actualización del estado operacional de vehículos</p>
-    </div>
-    <div class="actions-bar">
-        <a href="{{ url_for('download_excel') }}">📊 Descargar Excel Actualizado</a>
-        {% if session.logged_in %}
-            <a href="{{ url_for('logout') }}" class="logout-btn">Cerrar sesión</a>
-        {% endif %}
-    </div>
-</div>
-
-<div class="filters-card">
-    <form id="filter-form" method="get" action="{{ url_for('index') }}">
-        <div class="filter-row">
-            <div class="filter-group">
-                <label>División</label>
-                <select name="division" onchange="this.form.submit()">
-                    <option value="">Todas</option>
-                    {% for d in divisiones %}
-                    <option value="{{ d }}" {% if d == selected_division %}selected{% endif %}>{{ d }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div class="filter-group">
-                <label>Brigada</label>
-                <select name="brigada" onchange="this.form.submit()" {% if not selected_division %}disabled{% endif %}>
-                    <option value="">Todas</option>
-                    {% for b in brigadas %}
-                    <option value="{{ b }}" {% if b == selected_brigada %}selected{% endif %}>{{ b }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div class="filter-group">
-                <label>Unidad</label>
-                <select name="unidad" onchange="this.form.submit()" {% if not selected_brigada %}disabled{% endif %}>
-                    <option value="">Todas</option>
-                    {% for u in unidades %}
-                    <option value="{{ u }}" {% if u == selected_unidad %}selected{% endif %}>{{ u }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div class="filter-group">
-                <label>Buscar por Placa</label>
-                <input type="text" name="placa" placeholder="Ingrese placa..." value="{{ request.args.get('placa', '') }}">
-            </div>
-
-            <button type="submit" class="btn-filter">Aplicar Filtros</button>
+    <div class="header-container">
+        <div>
+            <h1>Gestión de Transportes</h1>
+            <p style="font-size: 0.875rem; color: var(--text-muted);">Filtro y actualización del estado operacional de
+                vehículos</p>
         </div>
-    </form>
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">
-    <span>📋 Lista de Vehículos</span>
-    <span>↔️ Desliza horizontalmente (o usa Shift + rueda del mouse) para ver todas las columnas</span>
-</div>
-
-<div class="table-container">
-    <table>
-        <thead>
-            <tr>
-                <th>ORD.</th>
-                <th>Clase / Tipo</th>
-                <th>Chasis</th>
-                <th>Motor</th>
-                <th>Año</th>
-                <th>Registro</th>
-                <th>Placas</th>
-                <th>DIVISIÓN</th>
-                <th>BRIGADA</th>
-                <th>Unidad</th>
-                <th>NECESIDAD OPERACIONAL FT</th>
-                <th class="editable-col">CONDICIÓN ✏️</th>
-                <th class="editable-col">ESTADO ✏️</th>
-                <th class="editable-col">OBSERVACIÓN (Máx 250 Palabras) ✏️</th>
-                <th>Acción</th>
-            </tr>
-        </thead>
-        <tbody id="table-body">
-            <!-- Filas inyectadas por JS -->
-        </tbody>
-    </table>
-</div>
-
-<div class="pagination-bar">
-    <span id="page-info" class="pagination-info">Cargando...</span>
-    <div class="pagination-btns">
-        <button id="prev-btn">◀ Anterior</button>
-        <button id="next-btn">Siguiente ▶</button>
+        <div class="actions-bar">
+            <a href="{{ url_for('download_excel') }}">📊 Descargar Excel Actualizado</a>
+            {% if session.logged_in %}
+            <a href="{{ url_for('logout') }}" class="logout-btn">Cerrar sesión</a>
+            {% endif %}
+        </div>
     </div>
-</div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const perPage = 50;
-    let currentPage = 1;
+    <div class="filters-card">
+        <form id="filter-form" method="get" action="{{ url_for('index') }}">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>División</label>
+                    <select name="division" onchange="this.form.submit()">
+                        <option value="">Todas</option>
+                        {% for d in divisiones %}
+                        <option value="{{ d }}" {% if d==selected_division %}selected{% endif %}>{{ d }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
 
-    function getFilters() {
-        const params = new URLSearchParams();
-        const division = document.querySelector('select[name="division"]').value;
-        const brigada = document.querySelector('select[name="brigada"]').value;
-        const unidad = document.querySelector('select[name="unidad"]').value;
-        const placa = document.querySelector('input[name="placa"]').value;
-        if (division) params.append('division', division);
-        if (brigada) params.append('brigada', brigada);
-        if (unidad) params.append('unidad', unidad);
-        if (placa) params.append('placa', placa);
-        return params;
-    }
+                <div class="filter-group">
+                    <label>Brigada</label>
+                    <select name="brigada" onchange="this.form.submit()" {% if not selected_division %}disabled{% endif
+                        %}>
+                        <option value="">Todas</option>
+                        {% for b in brigadas %}
+                        <option value="{{ b }}" {% if b==selected_brigada %}selected{% endif %}>{{ b }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
 
-    async function fetchPage(page = 1) {
-        currentPage = page;
-        const params = getFilters();
-        params.set('page', page);
-        params.set('per_page', perPage);
-        const resp = await fetch('/api/vehiculos?' + params.toString());
-        if (!resp.ok) { alert('Error al obtener datos'); return; }
-        const data = await resp.json();
-        renderTable(data.vehicles);
-        updatePagination(data.total, data.page, data.per_page);
-    }
+                <div class="filter-group">
+                    <label>Unidad</label>
+                    <select name="unidad" onchange="this.form.submit()" {% if not selected_brigada %}disabled{% endif
+                        %}>
+                        <option value="">Todas</option>
+                        {% for u in unidades %}
+                        <option value="{{ u }}" {% if u==selected_unidad %}selected{% endif %}>{{ u }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
 
-    function countWords(text) {
-        const clean = text.trim();
-        return clean ? clean.split(/\s+/).length : 0;
-    }
+                <div class="filter-group">
+                    <label>Buscar por Placa</label>
+                    <input type="text" name="placa" placeholder="Ingrese placa..."
+                        value="{{ request.args.get('placa', '') }}">
+                </div>
 
-    function renderTable(rows) {
-        const tbody = document.getElementById('table-body');
-        tbody.innerHTML = '';
+                <button type="submit" class="btn-filter">Aplicar Filtros</button>
+            </div>
+        </form>
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">
+            <span>📋 Lista de Vehículos</span>
+            <span>↔️ Desliza horizontalmente (o usa Shift + rueda del mouse) para ver todas las columnas</span>
+        </div>
 
-        if (rows.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="15" style="text-align: center; padding: 24px; color: var(--text-muted);">No se encontraron vehículos.</td></tr>`;
-            return;
-        }
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ORD.</th>
+                        <th>Clase / Tipo</th>
+                        <th>Chasis</th>
+                        <th>Motor</th>
+                        <th>Año</th>
+                        <th>Registro</th>
+                        <th>Placas</th>
+                        <th>DIVISIÓN</th>
+                        <th>BRIGADA</th>
+                        <th>Unidad</th>
+                        <th>NECESIDAD OPERACIONAL FT</th>
+                        <th class="editable-col">CONDICIÓN ✏️</th>
+                        <th class="editable-col">ESTADO ✏️</th>
+                        <th class="editable-col">OBSERVACIÓN (Máx 250 Palabras) ✏️</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <!-- Filas inyectadas por JS -->
+                </tbody>
+            </table>
+        </div>
 
-        for (const v of rows) {
-            const tr = document.createElement('tr');
-            const rawCond = (v['CONDICION'] || '').trim().toUpperCase();
-            const condVal = (rawCond === 'OPERABLE' || rawCond === 'NO OPERABLE') ? rawCond : '';
+        <div class="pagination-bar">
+            <span id="page-info" class="pagination-info">Cargando...</span>
+            <div class="pagination-btns">
+                <button id="prev-btn">◀ Anterior</button>
+                <button id="next-btn">Siguiente ▶</button>
+            </div>
+        </div>
 
-            const rawEstado = (v['ESTADO'] || '').trim().toUpperCase();
-            const estadoVal = (rawEstado === 'SERVIBLE' || rawEstado === 'INSERVIBLE') ? rawEstado : '';
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const perPage = 50;
+                let currentPage = 1;
 
-            const obsText = v['OBSERVACION'] || '';
+                function getFilters() {
+                    const params = new URLSearchParams();
+                    const division = document.querySelector('select[name="division"]').value;
+                    const brigada = document.querySelector('select[name="brigada"]').value;
+                    const unidad = document.querySelector('select[name="unidad"]').value;
+                    const placa = document.querySelector('input[name="placa"]').value;
+                    if (division) params.append('division', division);
+                    if (brigada) params.append('brigada', brigada);
+                    if (unidad) params.append('unidad', unidad);
+                    if (placa) params.append('placa', placa);
+                    return params;
+                }
 
-            tr.innerHTML = `
+                async function fetchPage(page = 1) {
+                    currentPage = page;
+                    const params = getFilters();
+                    params.set('page', page);
+                    params.set('per_page', perPage);
+                    const resp = await fetch('/api/vehiculos?' + params.toString());
+                    if (!resp.ok) { alert('Error al obtener datos'); return; }
+                    const data = await resp.json();
+                    renderTable(data.vehicles);
+                    updatePagination(data.total, data.page, data.per_page);
+                }
+
+                function countWords(text) {
+                    const clean = text.trim();
+                    return clean ? clean.split(/\s+/).length : 0;
+                }
+
+                function renderTable(rows) {
+                    const tbody = document.getElementById('table-body');
+                    tbody.innerHTML = '';
+
+                    if (rows.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="15" style="text-align: center; padding: 24px; color: var(--text-muted);">No se encontraron vehículos.</td></tr>`;
+                        return;
+                    }
+
+                    for (const v of rows) {
+                        const tr = document.createElement('tr');
+                        const rawCond = (v['CONDICION'] || '').trim().toUpperCase();
+                        const condVal = (rawCond === 'OPERABLE' || rawCond === 'NO OPERABLE') ? rawCond : '';
+
+                        const rawEstado = (v['ESTADO'] || '').trim().toUpperCase();
+                        const estadoVal = (rawEstado === 'SERVIBLE' || rawEstado === 'INSERVIBLE') ? rawEstado : '';
+
+                        const obsText = v['OBSERVACION'] || '';
+
+                        tr.innerHTML = `
                 <td><strong>${v['ORD']}</strong></td>
                 <td>${v['CLASE / TIPO'] || ''}</td>
                 <td>${v['CHASIS'] || ''}</td>
@@ -486,7 +500,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 <td>${v['DIVISION'] || ''}</td>
                 <td>${v['BRIGADA'] || ''}</td>
                 <td>${v['UNIDAD'] || ''}</td>
-                <td>${v['NECESIDAD OPERACIONAL FT'] || ''}</td>
                 <td>
                     <select class="select-editable select-condicion" data-val="${condVal}">
                         <option value="" ${!condVal ? 'selected' : ''}>-- Seleccionar --</option>
@@ -509,98 +522,99 @@ document.addEventListener('DOMContentLoaded', function () {
                     <button class="btn-save">Guardar</button>
                 </td>
             `;
-            tbody.appendChild(tr);
+                        tbody.appendChild(tr);
 
-            // Manejo dinámico del estilo de selects
-            const condSelect = tr.querySelector('.select-condicion');
-            const estadoSelect = tr.querySelector('.select-estado');
+                        // Manejo dinámico del estilo de selects
+                        const condSelect = tr.querySelector('.select-condicion');
+                        const estadoSelect = tr.querySelector('.select-estado');
 
-            condSelect.addEventListener('change', (e) => {
-                condSelect.setAttribute('data-val', e.target.value);
-            });
+                        condSelect.addEventListener('change', (e) => {
+                            condSelect.setAttribute('data-val', e.target.value);
+                        });
 
-            estadoSelect.addEventListener('change', (e) => {
-                estadoSelect.setAttribute('data-val', e.target.value);
-            });
+                        estadoSelect.addEventListener('change', (e) => {
+                            estadoSelect.setAttribute('data-val', e.target.value);
+                        });
 
-            // Contador dinámico de palabras
-            const obsArea = tr.querySelector('.textarea-obs');
-            const wordBadge = tr.querySelector('.word-count-badge');
+                        // Contador dinámico de palabras
+                        const obsArea = tr.querySelector('.textarea-obs');
+                        const wordBadge = tr.querySelector('.word-count-badge');
 
-            function updateCounter() {
-                const words = countWords(obsArea.value);
-                wordBadge.textContent = `${words} / 250 palabras`;
-                if (words > 250) {
-                    wordBadge.classList.add('exceeded');
-                } else {
-                    wordBadge.classList.remove('exceeded');
-                }
-            }
+                        function updateCounter() {
+                            const words = countWords(obsArea.value);
+                            wordBadge.textContent = `${words} / 250 palabras`;
+                            if (words > 250) {
+                                wordBadge.classList.add('exceeded');
+                            } else {
+                                wordBadge.classList.remove('exceeded');
+                            }
+                        }
 
-            obsArea.addEventListener('input', updateCounter);
-            updateCounter();
+                        obsArea.addEventListener('input', updateCounter);
+                        updateCounter();
 
-            // Guardar cambios
-            tr.querySelector('.btn-save').addEventListener('click', async () => {
-                const words = countWords(obsArea.value);
-                if (words > 250) {
-                    alert(`La observación supera el límite permitido de 250 palabras. Actualmente contiene ${words} palabras.`);
-                    return;
-                }
+                        // Guardar cambios
+                        tr.querySelector('.btn-save').addEventListener('click', async () => {
+                            const words = countWords(obsArea.value);
+                            if (words > 250) {
+                                alert(`La observación supera el límite permitido de 250 palabras. Actualmente contiene ${words} palabras.`);
+                                return;
+                            }
 
-                const ord = v['ORD'];
-                const condicion = condSelect.value;
-                const estado = estadoSelect.value;
-                const observacion = obsArea.value;
+                            const ord = v['ORD'];
+                            const condicion = condSelect.value;
+                            const estado = estadoSelect.value;
+                            const observacion = obsArea.value;
 
-                const formData = new FormData();
-                formData.append('ord', ord);
-                formData.append('condicion', condicion);
-                formData.append('estado', estado);
-                formData.append('observacion', observacion);
+                            const formData = new FormData();
+                            formData.append('ord', ord);
+                            formData.append('condicion', condicion);
+                            formData.append('estado', estado);
+                            formData.append('observacion', observacion);
 
-                try {
-                    const res = await fetch('{{ url_for("editar_vehiculo") }}', { method: 'POST', body: formData });
-                    const resData = await res.json();
-                    if (res.ok && resData.success) {
-                        alert('✅ Cambios guardados correctamente.');
-                        fetchPage(currentPage);
-                    } else {
-                        alert('❌ Error: ' + (resData.error || 'No se pudieron guardar los cambios.'));
+                            try {
+                                const res = await fetch('{{ url_for("editar_vehiculo") }}', { method: 'POST', body: formData });
+                                const resData = await res.json();
+                                if (res.ok && resData.success) {
+                                    alert('✅ Cambios guardados correctamente.');
+                                    fetchPage(currentPage);
+                                } else {
+                                    alert('❌ Error: ' + (resData.error || 'No se pudieron guardar los cambios.'));
+                                }
+                            } catch (err) {
+                                console.error(err);
+                                alert('❌ Error de conexión al guardar los cambios.');
+                            }
+                        });
                     }
-                } catch (err) {
-                    console.error(err);
-                    alert('❌ Error de conexión al guardar los cambios.');
                 }
+
+                function updatePagination(total, page, per_page) {
+                    const pageInfo = document.getElementById('page-info');
+                    const totalPages = Math.max(1, Math.ceil(total / per_page));
+                    pageInfo.textContent = `Mostrando página ${page} de ${totalPages} (Total: ${total} vehículos)`;
+                    document.getElementById('prev-btn').disabled = page <= 1;
+                    document.getElementById('next-btn').disabled = page >= totalPages;
+                }
+
+                document.getElementById('prev-btn').addEventListener('click', () => { if (currentPage > 1) fetchPage(currentPage - 1); });
+                document.getElementById('next-btn').addEventListener('click', () => { fetchPage(currentPage + 1); });
+
+                document.querySelectorAll('#filter-form').forEach(f => {
+                    f.addEventListener('submit', function (e) {
+                        e.preventDefault();
+                        fetchPage(1);
+                    });
+                });
+
+                document.querySelectorAll('.filter-group select').forEach(s => {
+                    s.addEventListener('change', () => fetchPage(1));
+                });
+
+                fetchPage(1);
             });
-        }
-    }
-
-    function updatePagination(total, page, per_page) {
-        const pageInfo = document.getElementById('page-info');
-        const totalPages = Math.max(1, Math.ceil(total / per_page));
-        pageInfo.textContent = `Mostrando página ${page} de ${totalPages} (Total: ${total} vehículos)`;
-        document.getElementById('prev-btn').disabled = page <= 1;
-        document.getElementById('next-btn').disabled = page >= totalPages;
-    }
-
-    document.getElementById('prev-btn').addEventListener('click', () => { if (currentPage > 1) fetchPage(currentPage - 1); });
-    document.getElementById('next-btn').addEventListener('click', () => { fetchPage(currentPage + 1); });
-
-    document.querySelectorAll('#filter-form').forEach(f => {
-        f.addEventListener('submit', function (e) {
-            e.preventDefault();
-            fetchPage(1);
-        });
-    });
-
-    document.querySelectorAll('.filter-group select').forEach(s => {
-        s.addEventListener('change', () => fetchPage(1));
-    });
-
-    fetchPage(1);
-});
-</script>
+        </script>
 
 </body>
+
 </html>
